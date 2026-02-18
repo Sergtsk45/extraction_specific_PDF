@@ -1,0 +1,8 @@
+{
+  "services": [
+    "spec-converterv2",
+    "ocr",
+    "docx-merger",
+    "project-validator"
+  ]
+}

@@ -1,0 +1,12 @@
+# Основные зависимости
+flask==3.0.0
+flask-cors==4.0.0
+pymupdf==1.23.8
+pdfplumber>=0.10.0
+openpyxl==3.1.2
+werkzeug==3.0.1
+
+# API провайдеры (установите нужные)
+anthropic==0.39.0      # Для Anthropic API
+openai==1.54.0         # Для OpenAI API
+requests==2.31.0       # Для OpenRouter API

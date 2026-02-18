@@ -1,0 +1,20 @@
+{
+  "id": "spec-converterv2",
+  "name": "Конвертер спецификаций",
+  "description": "PDF → Excel для проектных спецификаций (ВК, ОВ, ЭО и др.)",
+  "version": "2.0.0",
+  "category": "converters",
+  "icon": "📊",
+  "component": "component.js",
+  "status": "active",
+  "accepts": ["application/pdf"],
+  "supportsVisionOptions": true,
+  "endpoints": {
+    "base": "/api/spec-converter",
+    "convert": "POST /convert",
+    "health": "GET /health"
+  },
+  "maxFileSize": "50MB",
+  "outputType": "file-download",
+  "outputMime": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+}

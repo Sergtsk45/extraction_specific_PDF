@@ -1,0 +1,20 @@
+{
+  "id": "project-validator",
+  "name": "Нормоконтроль проекта",
+  "description": "Проверка соответствия шифров в именах файлов и внутри PDF-документов",
+  "version": "0.1.0",
+  "category": "validation",
+  "icon": "✅",
+  "component": "component.js",
+  "status": "planned",
+  "accepts": ["application/pdf"],
+  "supportsVisionOptions": false,
+  "endpoints": {
+    "base": "/api/project-validator",
+    "convert": "POST /validate",
+    "health": "GET /health"
+  },
+  "maxFileSize": "100MB",
+  "outputType": "file-download",
+  "outputMime": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+}

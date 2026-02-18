@@ -1,0 +1,29 @@
+# Конфигурация для OpenRouter API
+# 
+# Получите API ключ на https://openrouter.ai/
+# Бонус: $5 бесплатных кредитов при регистрации!
+
+API_KEY = 'sk-or-your-key-here'
+API_PROVIDER = 'openrouter'
+MODEL_NAME = 'anthropic/claude-sonnet-4'
+
+# Доступные модели Claude через OpenRouter:
+# - anthropic/claude-sonnet-4 (рекомендуется)
+# - anthropic/claude-opus-4.5 (лучшая точность)
+# - anthropic/claude-haiku-4.5 (быстрее и дешевле)
+
+# Другие доступные модели через OpenRouter:
+# - openai/gpt-4o (альтернатива Claude)
+# - google/gemini-pro-1.5 (альтернатива Claude)
+# - meta-llama/llama-3.3-70b-instruct (бесплатная модель)
+
+# Пример настроенной конфигурации:
+# API_KEY = 'sk-or-v1-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+# API_PROVIDER = 'openrouter'
+# MODEL_NAME = 'anthropic/claude-sonnet-4'
+
+# Преимущества OpenRouter:
+# ✅ Один ключ для всех моделей
+# ✅ $5 бесплатных кредитов
+# ✅ Легко переключаться между моделями
+# ✅ Удобная статистика использования

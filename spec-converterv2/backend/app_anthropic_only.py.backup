@@ -1,0 +1,279 @@
+from flask import Flask, request, send_file, jsonify
+from flask_cors import CORS
+import os
+import fitz  # PyMuPDF
+import base64
+import json
+import re
+from pathlib import Path
+from werkzeug.utils import secure_filename
+from spec_utils import SpecificationExcelBuilder, SpecificationDataExtractor
+
+app = Flask(__name__)
+CORS(app)
+
+# Конфигурация
+UPLOAD_FOLDER = '../uploads'
+OUTPUT_FOLDER = '../output'
+ALLOWED_EXTENSIONS = {'pdf'}
+
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+
+# Загружаем конфигурацию
+try:
+    from config import API_PROVIDER, MODEL_NAME, MAX_TOKENS
+    
+    if API_PROVIDER == 'anthropic':
+        from config import ANTHROPIC_API_KEY as API_KEY
+    elif API_PROVIDER == 'openrouter':
+        from config import OPENROUTER_API_KEY as API_KEY
+    elif API_PROVIDER == 'openai':
+        from config import OPENAI_API_KEY as API_KEY
+    else:
+        raise ValueError(f"Неизвестный провайдер: {API_PROVIDER}")
+    
+    print(f"✅ Конфигурация загружена: {API_PROVIDER} / {MODEL_NAME}")
+    
+except ImportError:
+    print("⚠️  ВНИМАНИЕ: config.py не найден!")
+    print("   Создайте config.py из config_universal.py.example")
+    API_PROVIDER = None
+    API_KEY = None
+    MODEL_NAME = None
+    MAX_TOKENS = 4000
+
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+def pdf_to_images(pdf_path):
+    """Конвертирует PDF в список изображений"""
+    doc = fitz.open(pdf_path)
+    images = []
+    
+    for page_num in range(len(doc)):
+        page = doc[page_num]
+        # Увеличиваем разрешение для лучшего распознавания
+        pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
+        img_data = pix.tobytes("png")
+        images.append(img_data)
+    
+    doc.close()
+    return images
+
+
+def extract_table_from_image(image_data, api_key):
+    """Извлекает таблицу из изображения через Claude API"""
+    
+    client = anthropic.Anthropic(api_key=api_key)
+    
+    # Промпт для извлечения таблицы
+    prompt = """Извлеки данные из этой страницы спецификации в JSON формат.
+
+Структура таблицы (9 колонок):
+1. Позиция (может быть пустой для подпунктов)
+2. Наименование и техническая характеристика
+3. Тип, марка, обозначение документа, опросного листа
+4. Код оборудования/изделия/материала (или "Код продукции" для офисов)
+5. Завод-изготовитель (или "Поставщик")
+6. Единица измерения
+7. Количество
+8. Масса единицы, кг
+9. Примечание
+
+ВАЖНО:
+- Если позиция пустая, это значит продолжение предыдущей позиции (оставь пустой строкой "")
+- Многострочный текст в одной ячейке объедини через пробел
+- "в т.ч.:" означает, что дальше идут компоненты узла
+- Сохрани все специальные символы: Ф, ², м³, °С, ±
+
+Верни ТОЛЬКО JSON без дополнительного текста:
+{
+  "rows": [
+    ["позиция", "наименование", "тип", "код", "завод", "ед.изм", "кол-во", "масса", "примечание"],
+    ...
+  ]
+}"""
+
+    # Конвертируем изображение в base64
+    image_base64 = base64.b64encode(image_data).decode('utf-8')
+    
+    # Вызов Claude API
+    message = client.messages.create(
+        model="claude-sonnet-4-20250514",
+        max_tokens=4000,
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": "image/png",
+                            "data": image_base64,
+                        },
+                    },
+                    {
+                        "type": "text",
+                        "text": prompt
+                    }
+                ],
+            }
+        ],
+    )
+    
+    # Извлекаем JSON из ответа
+    response_text = message.content[0].text
+    
+    # Парсим JSON (удаляем markdown обёртку если есть)
+    json_match = re.search(r'```json\s*(.*?)\s*```', response_text, re.DOTALL)
+    if json_match:
+        json_str = json_match.group(1)
+    else:
+        json_str = response_text
+    
+    try:
+        data = json.loads(json_str)
+        return data.get('rows', [])
+    except json.JSONDecodeError as e:
+        print(f"JSON parse error: {e}")
+        print(f"Response: {response_text[:500]}")
+        return []
+
+
+def create_excel_from_data(all_rows, output_path):
+    """Создаёт Excel из извлечённых данных"""
+    
+    builder = SpecificationExcelBuilder(output_path)
+    ext = SpecificationDataExtractor()
+    
+    # Группируем строки по страницам/секциям
+    # Для простоты создаём один лист со всеми данными
+    if all_rows:
+        # Добавляем заголовок если его нет
+        if len(all_rows) > 0 and not all(isinstance(cell, str) for cell in all_rows[0]):
+            header = ext.create_header(use_code_column=False)
+            all_rows.insert(0, header)
+        
+        builder.create_sheet("Спецификация", all_rows)
+        builder.save()
+        return True
+    
+    return False
+
+
+@app.route('/convert', methods=['POST'])
+def convert_pdf():
+    """Основной endpoint для конвертации PDF в Excel"""
+    
+    # Проверка API ключа
+    if not ANTHROPIC_API_KEY:
+        return jsonify({'error': 'API ключ не настроен. Добавьте ANTHROPIC_API_KEY в config.py'}), 500
+    
+    # Проверка наличия файла
+    if 'file' not in request.files:
+        return jsonify({'error': 'Файл не найден'}), 400
+    
+    file = request.files['file']
+    
+    if file.filename == '':
+        return jsonify({'error': 'Файл не выбран'}), 400
+    
+    if not allowed_file(file.filename):
+        return jsonify({'error': 'Разрешены только PDF файлы'}), 400
+    
+    try:
+        # Сохраняем загруженный PDF
+        filename = secure_filename(file.filename)
+        pdf_path = os.path.join(UPLOAD_FOLDER, filename)
+        file.save(pdf_path)
+        
+        print(f"📄 Обработка файла: {filename}")
+        
+        # Конвертируем PDF в изображения
+        print("  🖼️  Конвертация страниц в изображения...")
+        images = pdf_to_images(pdf_path)
+        print(f"  ✓ Создано {len(images)} изображений")
+        
+        # Обрабатываем каждую страницу через Claude API
+        all_rows = []
+        
+        for i, image in enumerate(images):
+            print(f"  🤖 Обработка страницы {i+1}/{len(images)} через Claude API...")
+            
+            try:
+                rows = extract_table_from_image(image, ANTHROPIC_API_KEY)
+                if rows:
+                    all_rows.extend(rows)
+                    print(f"     ✓ Извлечено {len(rows)} строк")
+                else:
+                    print(f"     ⚠️  Нет данных на странице")
+            except Exception as e:
+                print(f"     ❌ Ошибка на странице {i+1}: {e}")
+                continue
+        
+        if not all_rows:
+            return jsonify({'error': 'Не удалось извлечь данные из PDF'}), 500
+        
+        # Создаём Excel
+        print("  📊 Создание Excel файла...")
+        output_filename = filename.replace('.pdf', '.xlsx')
+        output_path = os.path.join(OUTPUT_FOLDER, output_filename)
+        
+        if create_excel_from_data(all_rows, output_path):
+            print(f"  ✅ Excel создан: {output_filename}")
+            
+            # Отправляем файл пользователю
+            return send_file(
+                output_path,
+                mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                as_attachment=True,
+                download_name=output_filename
+            )
+        else:
+            return jsonify({'error': 'Ошибка создания Excel'}), 500
+            
+    except Exception as e:
+        print(f"❌ Ошибка: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+    
+    finally:
+        # Очищаем временные файлы
+        try:
+            if os.path.exists(pdf_path):
+                os.remove(pdf_path)
+        except:
+            pass
+
+
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Проверка работоспособности сервера"""
+    return jsonify({
+        'status': 'ok',
+        'api_key_configured': ANTHROPIC_API_KEY is not None
+    })
+
+
+if __name__ == '__main__':
+    print("\n" + "="*60)
+    print("🚀 Запуск сервера конвертации спецификаций")
+    print("="*60)
+    
+    if ANTHROPIC_API_KEY:
+        print("✅ API ключ настроен")
+    else:
+        print("❌ API ключ НЕ настроен!")
+        print("   Создайте файл backend/config.py:")
+        print("   ANTHROPIC_API_KEY = 'sk-ant-...'")
+    
+    print("\n📝 Откройте в браузере:")
+    print("   file:///path/to/frontend/index.html")
+    print("\n" + "="*60 + "\n")
+    
+    app.run(debug=True, host='0.0.0.0', port=5000)

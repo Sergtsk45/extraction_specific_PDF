@@ -1,0 +1,22 @@
+{
+  "id": "docx-merger",
+  "name": "Сборщик ПЗ (DOCX Merger)",
+  "description": "Сборка пояснительной записки из фрагментов по шаблону (DOCX → DOCX)",
+  "version": "0.1.0",
+  "category": "generators",
+  "icon": "📄",
+  "component": "component.js",
+  "status": "planned",
+  "accepts": [
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+  ],
+  "supportsVisionOptions": false,
+  "endpoints": {
+    "base": "/api/docx-merger",
+    "convert": "POST /merge",
+    "health": "GET /health"
+  },
+  "maxFileSize": "30MB",
+  "outputType": "file-download",
+  "outputMime": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+}

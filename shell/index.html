@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DocPlatform — Автоматизация документов</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+  <!-- ===== HEADER ===== -->
+  <header class="header" role="banner">
+    <div class="header__brand">
+      <span class="header__logo" aria-hidden="true">⚙️</span>
+      <span class="header__name">DocPlatform</span>
+    </div>
+
+    <div class="header__search">
+      <span class="header__search-icon" aria-hidden="true">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+             fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+      </span>
+      <input
+        type="search"
+        id="search-input"
+        class="header__search-input"
+        placeholder="Поиск сервисов..."
+        autocomplete="off"
+        aria-label="Поиск сервисов"
+      >
+    </div>
+
+    <div class="header__actions">
+      <button class="icon-btn" id="history-btn" title="История операций" aria-label="История операций">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
+             fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- ===== APP LAYOUT ===== -->
+  <div class="app-layout">
+
+    <!-- Sidebar -->
+    <nav class="sidebar" id="sidebar" aria-label="Категории сервисов">
+      <div class="sidebar__loading">
+        <div class="spinner spinner--sm"></div>
+      </div>
+    </nav>
+
+    <!-- Main content -->
+    <main class="main" role="main">
+      <div class="main__toolbar">
+        <h2 class="main__title" id="category-title">Все сервисы</h2>
+        <span class="main__count" id="services-count" aria-live="polite"></span>
+      </div>
+
+      <div class="card-grid" id="card-grid" aria-label="Список сервисов">
+        <div class="grid-loading">
+          <div class="spinner"></div>
+          <span>Загрузка сервисов...</span>
+        </div>
+      </div>
+    </main>
+
+  </div>
+
+  <!-- ===== HISTORY PANEL ===== -->
+  <aside class="history-panel" id="history-panel" aria-label="История операций" hidden>
+    <div class="history-panel__header">
+      <h3 class="history-panel__title">История операций</h3>
+      <button class="icon-btn" id="history-close-btn" aria-label="Закрыть историю">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
+             fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <div class="history-panel__body" id="history-list"></div>
+    <div class="history-panel__footer">
+      <button class="btn btn--ghost btn--sm" id="history-clear-btn">Очистить историю</button>
+    </div>
+  </aside>
+
+  <!-- ===== ADVANCED MODAL ===== -->
+  <div class="adv-modal" id="advanced-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="adv-modal__inner">
+
+      <header class="adv-modal__header">
+        <div class="adv-modal__service-info">
+          <span class="adv-modal__icon" id="modal-icon" aria-hidden="true"></span>
+          <div>
+            <h2 class="adv-modal__title" id="modal-title"></h2>
+            <span class="adv-modal__version" id="modal-version"></span>
+          </div>
+        </div>
+        <button class="icon-btn" id="modal-close-btn" aria-label="Закрыть">
+          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24"
+               fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </header>
+
+      <div class="adv-modal__body">
+        <p class="adv-modal__description" id="modal-description"></p>
+
+        <!-- Drop zone -->
+        <div class="adv-dropzone" id="modal-dropzone" role="region" aria-label="Зона загрузки файла">
+          <div class="adv-dropzone__inner">
+            <span class="adv-dropzone__icon" aria-hidden="true">📎</span>
+            <p class="adv-dropzone__text">
+              Перетащите файл сюда
+              <br><span class="adv-dropzone__hint">или нажмите для выбора</span>
+            </p>
+            <input type="file" id="modal-file-input" class="adv-dropzone__input" aria-label="Выбрать файл">
+          </div>
+        </div>
+
+        <!-- Options (provider, vision-only) -->
+        <div class="modal-options" id="modal-options" hidden>
+          <div class="modal-options__row">
+            <label class="modal-options__label" for="modal-provider-select">Vision-провайдер:</label>
+            <select id="modal-provider-select" class="modal-select">
+              <option value="">По умолчанию</option>
+              <option value="anthropic">Anthropic Claude</option>
+              <option value="openai">OpenAI GPT-4V</option>
+              <option value="openrouter">OpenRouter</option>
+            </select>
+          </div>
+          <label class="modal-options__checkbox">
+            <input type="checkbox" id="modal-vision-only">
+            <span>Только Vision (принудительно)</span>
+          </label>
+        </div>
+
+        <!-- Progress -->
+        <div class="modal-progress" id="modal-progress" hidden>
+          <div class="progress-bar">
+            <div class="progress-bar__fill" id="modal-progress-bar" style="width: 0%"></div>
+          </div>
+          <p class="progress-status" id="modal-progress-status">Обработка...</p>
+        </div>
+
+        <!-- Log -->
+        <div class="modal-log" id="modal-log" hidden>
+          <div class="modal-log__header">
+            <span class="modal-log__label">Лог обработки</span>
+            <button class="btn btn--ghost btn--sm" id="modal-log-clear">Очистить</button>
+          </div>
+          <div class="modal-log__body" id="modal-log-content" role="log" aria-live="polite"></div>
+        </div>
+
+        <!-- Result -->
+        <div class="modal-result" id="modal-result" hidden>
+          <div class="modal-result__badges" id="modal-result-badges"></div>
+          <button class="btn btn--primary" id="modal-download-btn" type="button">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                 fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            Скачать результат
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Overlay -->
+  <div class="overlay" id="overlay" hidden aria-hidden="true"></div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

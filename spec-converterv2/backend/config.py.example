@@ -1,0 +1,9 @@
+# Конфигурация API ключа Claude
+# 
+# Получите API ключ на https://console.anthropic.com/
+# Замените 'your-api-key-here' на ваш реальный ключ
+
+ANTHROPIC_API_KEY = 'your-api-key-here'
+
+# Пример:
+# ANTHROPIC_API_KEY = 'sk-ant-api03-...'

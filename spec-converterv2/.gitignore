@@ -1,0 +1,33 @@
+# API ключи и конфиги
+backend/config.py
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+
+# Временные файлы
+uploads/*
+!uploads/.gitkeep
+output/*
+!output/.gitkeep
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

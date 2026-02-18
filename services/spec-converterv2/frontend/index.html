@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Конвертер спецификаций PDF → Excel</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .container {
+      background: rgba(28, 28, 46, 0.96);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 20px;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+      max-width: 640px;
+      width: 100%;
+      padding: 40px;
+      color: #eeeef8;
+    }
+
+    /* ── Header ── */
+    .header {
+      text-align: center;
+      margin-bottom: 28px;
+    }
+    .header__icon { font-size: 3rem; line-height: 1; margin-bottom: 12px; }
+    .header__title {
+      font-size: 1.6rem;
+      font-weight: 700;
+      background: linear-gradient(90deg, #818cf8, #c084fc);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 6px;
+    }
+    .header__subtitle { font-size: 0.85rem; color: #8888aa; }
+
+    /* ── API Status ── */
+    .api-status {
+      border-radius: 10px;
+      padding: 12px 16px;
+      margin-bottom: 20px;
+      font-size: 0.82rem;
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    .api-status--checking { background: rgba(245,158,11,0.1); color: #f59e0b; border-color: rgba(245,158,11,0.3); }
+    .api-status--ok       { background: rgba(34,197,94,0.1);  color: #22c55e; border-color: rgba(34,197,94,0.3);  }
+    .api-status--error    { background: rgba(239,68,68,0.1);  color: #ef4444; border-color: rgba(239,68,68,0.3);  }
+
+    /* ── Dropzone ── */
+    .dropzone {
+      border: 2px dashed rgba(99,102,241,0.4);
+      border-radius: 14px;
+      padding: 48px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      background: rgba(99,102,241,0.04);
+      margin-bottom: 20px;
+      position: relative;
+    }
+    .dropzone:hover { border-color: rgba(99,102,241,0.7); background: rgba(99,102,241,0.08); }
+    .dropzone.over  { border-color: #6366f1 !important; background: rgba(99,102,241,0.12) !important; transform: scale(1.01); }
+    .dropzone.processing { border-color: rgba(245,158,11,0.5); background: rgba(245,158,11,0.05); cursor: wait; pointer-events: none; }
+    .dropzone.success { border-color: rgba(34,197,94,0.6);  background: rgba(34,197,94,0.06);  }
+    .dropzone.error   { border-color: rgba(239,68,68,0.6);  background: rgba(239,68,68,0.06);  }
+
+    .dropzone__icon { font-size: 2.8rem; margin-bottom: 14px; pointer-events: none; }
+    .dropzone__text { font-size: 1rem; font-weight: 600; color: #818cf8; margin-bottom: 6px; pointer-events: none; }
+    .dropzone__hint { font-size: 0.78rem; color: #8888aa; pointer-events: none; }
+    .dropzone__input {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer;
+      width: 100%; height: 100%;
+    }
+
+    /* ── File info ── */
+    .file-info {
+      display: none;
+      background: rgba(99,102,241,0.08);
+      border: 1px solid rgba(99,102,241,0.2);
+      border-radius: 10px;
+      padding: 14px 18px;
+      margin-bottom: 16px;
+      font-size: 0.84rem;
+    }
+    .file-info.visible { display: flex; align-items: center; gap: 10px; }
+    .file-info__name   { font-weight: 600; color: #c7d2fe; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .file-info__size   { color: #8888aa; white-space: nowrap; flex-shrink: 0; }
+
+    /* ── Options ── */
+    .options {
+      display: none;
+      gap: 12px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .options.visible { display: flex; }
+
+    .options__label { font-size: 0.78rem; color: #8888aa; }
+
+    .options__select {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 0.82rem;
+      color: #eeeef8;
+      cursor: pointer;
+    }
+    .options__select:focus { outline: none; border-color: rgba(99,102,241,0.5); }
+
+    .options__checkbox { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+    .options__checkbox input { cursor: pointer; accent-color: #6366f1; }
+    .options__checkbox span  { font-size: 0.82rem; color: #c7d2fe; }
+
+    /* ── Convert Button ── */
+    .convert-btn {
+      display: none;
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      margin-bottom: 16px;
+    }
+    .convert-btn.visible { display: block; }
+    .convert-btn:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); box-shadow: 0 8px 24px rgba(99,102,241,0.4); }
+    .convert-btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+
+    /* ── Progress ── */
+    .progress { display: none; margin-bottom: 16px; }
+    .progress.visible { display: block; }
+    .progress__bar    { height: 6px; background: rgba(255,255,255,0.08); border-radius: 4px; overflow: hidden; margin-bottom: 8px; }
+    .progress__fill {
+      height: 100%;
+      background: linear-gradient(90deg, #6366f1, #a855f7);
+      border-radius: 4px;
+      width: 30%;
+      animation: indeterminate 1.6s ease-in-out infinite;
+    }
+    @keyframes indeterminate {
+      0%   { transform: translateX(-100%) scaleX(0.5); }
+      50%  { transform: translateX(0%)    scaleX(0.8); }
+      100% { transform: translateX(200%)  scaleX(0.5); }
+    }
+    .progress__text { font-size: 0.8rem; color: #8888aa; text-align: center; }
+
+    /* ── Result ── */
+    .result { display: none; }
+    .result.visible {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(34,197,94,0.1);
+      border: 1px solid rgba(34,197,94,0.3);
+      border-radius: 10px;
+      padding: 14px 18px;
+      margin-bottom: 16px;
+    }
+    .result__text  { flex: 1; font-size: 0.84rem; color: #22c55e; font-weight: 600; }
+    .result__badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 9px;
+      border-radius: 99px;
+      font-size: 0.72rem;
+      font-weight: 500;
+      background: rgba(99,102,241,0.18);
+      color: #818cf8;
+      border: 1px solid rgba(99,102,241,0.3);
+    }
+    .result__download-btn {
+      padding: 8px 16px;
+      background: rgba(34,197,94,0.15);
+      border: 1px solid rgba(34,197,94,0.4);
+      border-radius: 8px;
+      color: #22c55e;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .result__download-btn:hover { background: rgba(34,197,94,0.25); }
+
+    /* ── Error ── */
+    .error-msg {
+      display: none;
+      background: rgba(239,68,68,0.1);
+      border: 1px solid rgba(239,68,68,0.3);
+      border-radius: 10px;
+      padding: 14px 18px;
+      margin-bottom: 16px;
+      font-size: 0.84rem;
+      color: #ef4444;
+    }
+    .error-msg.visible { display: block; }
+
+    /* ── Sheet list ── */
+    .sheet-list { display: none; margin-top: 8px; }
+    .sheet-list.visible { display: block; }
+    .sheet-list__title { font-size: 0.72rem; color: #8888aa; margin-bottom: 6px; }
+    .sheet-list__items { display: flex; flex-wrap: wrap; gap: 6px; }
+    .sheet-chip {
+      padding: 2px 10px;
+      background: rgba(99,102,241,0.12);
+      border: 1px solid rgba(99,102,241,0.2);
+      border-radius: 99px;
+      font-size: 0.72rem;
+      color: #c7d2fe;
+    }
+
+    /* ── Footer ── */
+    .footer {
+      text-align: center;
+      margin-top: 24px;
+      font-size: 0.72rem;
+      color: rgba(136,136,170,0.5);
+    }
+    .footer a { color: rgba(129,140,248,0.6); text-decoration: none; }
+    .footer a:hover { color: #818cf8; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="header__icon">📊</div>
+      <h1 class="header__title">Конвертер спецификаций</h1>
+      <p class="header__subtitle">PDF → Excel · Text-first + Vision fallback</p>
+    </div>
+
+    <div id="apiStatus" class="api-status api-status--checking">
+      ⏳ Проверка подключения к API...
+    </div>
+
+    <div id="dropzone" class="dropzone">
+      <input type="file" id="fileInput" class="dropzone__input" accept=".pdf,application/pdf">
+      <div class="dropzone__icon">📄</div>
+      <div id="dropText" class="dropzone__text">Перетащите PDF файл сюда</div>
+      <div class="dropzone__hint">или нажмите для выбора файла</div>
+    </div>
+
+    <div id="fileInfo" class="file-info">
+      <span class="file-info__name" id="fileName"></span>
+      <span class="file-info__size" id="fileSize"></span>
+    </div>
+
+    <div id="options" class="options">
+      <span class="options__label">Vision:</span>
+      <select id="providerSelect" class="options__select">
+        <option value="">Авто (из .env)</option>
+        <option value="openrouter">OpenRouter</option>
+        <option value="anthropic">Anthropic</option>
+        <option value="openai">OpenAI</option>
+      </select>
+      <label class="options__checkbox">
+        <input type="checkbox" id="visionOnly">
+        <span>Только Vision</span>
+      </label>
+    </div>
+
+    <button id="convertBtn" class="convert-btn">✨ Конвертировать в Excel</button>
+
+    <div id="progress" class="progress">
+      <div class="progress__bar"><div class="progress__fill"></div></div>
+      <div id="progressText" class="progress__text">Обработка файла...</div>
+    </div>
+
+    <div id="result" class="result">
+      <span class="result__text" id="resultText">✓ Конвертация завершена!</span>
+      <span id="visionBadge" class="result__badge" style="display:none">👁 Vision</span>
+      <button id="downloadBtn" class="result__download-btn">⬇ Скачать</button>
+    </div>
+
+    <div id="sheetList" class="sheet-list">
+      <div class="sheet-list__title">Листы Excel:</div>
+      <div id="sheetItems" class="sheet-list__items"></div>
+    </div>
+
+    <div id="errorMsg" class="error-msg"></div>
+
+    <div class="footer">
+      Standalone-режим · <a href="/api/spec-converter/health" target="_blank">Health check</a>
+    </div>
+  </div>
+
+  <script>
+    // ── Config ──────────────────────────────────────────────────────────────
+    // В production через Nginx: '/api/spec-converter'
+    // В dev напрямую: 'http://localhost:5001'
+    const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+      ? 'http://localhost:5001'
+      : '/api/spec-converter';
+
+    // ── State ────────────────────────────────────────────────────────────────
+    let selectedFile = null;
+    let resultBlob   = null;
+    let resultName   = null;
+
+    // ── Elements ─────────────────────────────────────────────────────────────
+    const dropzone      = document.getElementById('dropzone');
+    const fileInput     = document.getElementById('fileInput');
+    const fileInfoEl    = document.getElementById('fileInfo');
+    const fileNameEl    = document.getElementById('fileName');
+    const fileSizeEl    = document.getElementById('fileSize');
+    const optionsEl     = document.getElementById('options');
+    const providerSel   = document.getElementById('providerSelect');
+    const visionOnlyCb  = document.getElementById('visionOnly');
+    const convertBtn    = document.getElementById('convertBtn');
+    const progressEl    = document.getElementById('progress');
+    const progressText  = document.getElementById('progressText');
+    const resultEl      = document.getElementById('result');
+    const resultText    = document.getElementById('resultText');
+    const visionBadge   = document.getElementById('visionBadge');
+    const downloadBtn   = document.getElementById('downloadBtn');
+    const sheetListEl   = document.getElementById('sheetList');
+    const sheetItemsEl  = document.getElementById('sheetItems');
+    const errorMsgEl    = document.getElementById('errorMsg');
+    const apiStatusEl   = document.getElementById('apiStatus');
+    const dropText      = document.getElementById('dropText');
+
+    // ── Health check ─────────────────────────────────────────────────────────
+    (async function checkHealth() {
+      try {
+        const res  = await fetch(`${API_BASE}/health`);
+        const data = await res.json();
+        if (data.status === 'ok') {
+          const names = { openrouter: 'OpenRouter', anthropic: 'Anthropic', openai: 'OpenAI' };
+          const prov  = names[data.provider] || data.provider || 'не указан';
+          apiStatusEl.className = 'api-status api-status--ok';
+          apiStatusEl.textContent = data.configured
+            ? `✅ ${prov} · ${data.model || ''}`
+            : `⚠️ Бэкенд запущен, API-ключ не настроен (только text-режим)`;
+        } else {
+          throw new Error('bad status');
+        }
+      } catch {
+        apiStatusEl.className   = 'api-status api-status--error';
+        apiStatusEl.textContent = '❌ Бэкенд недоступен. Запустите: python app.py (порт 5001)';
+      }
+    })();
+
+    // ── Dropzone ─────────────────────────────────────────────────────────────
+    dropzone.addEventListener('dragenter', e => { e.preventDefault(); dropzone.classList.add('over'); });
+    dropzone.addEventListener('dragover',  e => { e.preventDefault(); dropzone.classList.add('over'); });
+    dropzone.addEventListener('dragleave', ()  => dropzone.classList.remove('over'));
+    dropzone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropzone.classList.remove('over');
+      const file = e.dataTransfer?.files?.[0];
+      if (file) handleFile(file);
+    });
+
+    fileInput.addEventListener('change', () => {
+      const file = fileInput.files?.[0];
+      if (file) handleFile(file);
+      fileInput.value = '';
+    });
+
+    function handleFile(file) {
+      if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+        showError('Пожалуйста, загрузите PDF файл');
+        return;
+      }
+      selectedFile = file;
+      resultBlob   = null;
+      resultName   = null;
+
+      fileNameEl.textContent = file.name;
+      fileSizeEl.textContent = formatSize(file.size);
+      fileInfoEl.classList.add('visible');
+      optionsEl.classList.add('visible');
+      convertBtn.classList.add('visible');
+      dropText.textContent = '📄 ' + file.name;
+
+      hideResult();
+      hideError();
+    }
+
+    // ── Conversion ───────────────────────────────────────────────────────────
+    convertBtn.addEventListener('click', async () => {
+      if (!selectedFile) return;
+      await convert(selectedFile);
+    });
+
+    downloadBtn.addEventListener('click', () => {
+      if (resultBlob && resultName) triggerDownload(resultBlob, resultName);
+    });
+
+    async function convert(file) {
+      setProcessing(true);
+      hideResult();
+      hideError();
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const provider   = providerSel.value;
+      const visionOnly = visionOnlyCb.checked;
+      if (provider)   formData.append('provider', provider);
+      if (visionOnly) formData.append('vision_only', 'true');
+
+      progressText.textContent = visionOnly ? '🖼️ Vision-режим...' : '⏳ Обработка...';
+
+      try {
+        const response = await fetch(`${API_BASE}/convert`, { method: 'POST', body: formData });
+
+        if (!response.ok) {
+          let errMsg = `HTTP ${response.status}`;
+          try { const json = await response.json(); errMsg = json.error || errMsg; } catch {}
+          throw new Error(errMsg);
+        }
+
+        const visionFallback = response.headers.get('X-Vision-Fallback') === 'true';
+        const sheetNamesRaw  = response.headers.get('X-Sheet-Names') || '';
+        const blob = await response.blob();
+
+        // Имя файла
+        let filename = file.name.replace(/\.pdf$/i, '.xlsx');
+        const disp = response.headers.get('Content-Disposition') || '';
+        const m    = disp.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+        if (m?.[1]) filename = m[1].replace(/^['"]|['"]$/g, '');
+
+        resultBlob = blob;
+        resultName = filename;
+
+        setProcessing(false);
+        showResult(filename, visionFallback, sheetNamesRaw);
+        triggerDownload(blob, filename);
+
+      } catch (err) {
+        setProcessing(false);
+        showError(err.message);
+      }
+    }
+
+    // ── UI helpers ────────────────────────────────────────────────────────────
+    function setProcessing(on) {
+      dropzone.classList.toggle('processing', on);
+      convertBtn.disabled = on;
+      progressEl.classList.toggle('visible', on);
+      if (!on) dropzone.classList.remove('processing');
+    }
+
+    function showResult(filename, visionFallback, sheetNamesRaw) {
+      dropzone.classList.add('success');
+      resultText.textContent  = `✓ ${filename}`;
+      visionBadge.style.display = visionFallback ? 'inline-flex' : 'none';
+      resultEl.classList.add('visible');
+
+      if (sheetNamesRaw) {
+        const sheets = sheetNamesRaw.split(',').map(s => s.trim()).filter(Boolean);
+        sheetItemsEl.innerHTML = sheets.map(s => `<span class="sheet-chip">${s}</span>`).join('');
+        sheetListEl.classList.add('visible');
+      }
+    }
+
+    function hideResult() {
+      resultEl.classList.remove('visible');
+      sheetListEl.classList.remove('visible');
+      dropzone.classList.remove('success', 'error');
+    }
+
+    function showError(msg) {
+      dropzone.classList.add('error');
+      errorMsgEl.textContent = `❌ ${msg}`;
+      errorMsgEl.classList.add('visible');
+    }
+
+    function hideError() {
+      errorMsgEl.classList.remove('visible');
+      dropzone.classList.remove('error');
+    }
+
+    function triggerDownload(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const a   = Object.assign(document.createElement('a'), { href: url, download: filename });
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    function formatSize(bytes) {
+      if (bytes === 0) return '0 B';
+      const u = ['B','KB','MB','GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(1024));
+      return (bytes / Math.pow(1024, i)).toFixed(1) + ' ' + u[i];
+    }
+  </script>
+</body>
+</html>

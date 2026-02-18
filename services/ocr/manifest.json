@@ -1,0 +1,20 @@
+{
+  "id": "ocr",
+  "name": "Распознавание текста (OCR)",
+  "description": "Извлечение текста из фотографий штампов и чертежей (Image → Text)",
+  "version": "0.1.0",
+  "category": "converters",
+  "icon": "🔍",
+  "component": "component.js",
+  "status": "planned",
+  "accepts": ["image/jpeg", "image/png", "image/webp", "application/pdf"],
+  "supportsVisionOptions": false,
+  "endpoints": {
+    "base": "/api/ocr",
+    "convert": "POST /extract",
+    "health": "GET /health"
+  },
+  "maxFileSize": "20MB",
+  "outputType": "file-download",
+  "outputMime": "text/plain"
+}
