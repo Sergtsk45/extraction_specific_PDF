@@ -116,7 +116,12 @@ export class ServiceRegistry extends EventTarget {
   async #loadComponent(id) {
     const url = `${CONFIG.servicesBase}/services/${id}/component.js`;
     try {
-      await import(url);
+      // В dev Chrome может сохранять ES-модули между обновлениями страницы (304),
+      // поэтому добавляем cache-busting query для localhost, чтобы гарантировать
+      // подхват свежего component.js при разработке.
+      const isLocalhost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+      const bust = isLocalhost ? `?v=${Date.now()}` : '';
+      await import(`${url}${bust}`);
       console.log(`[ServiceRegistry] Компонент "${id}" загружен`);
     } catch {
       console.info(`[ServiceRegistry] component.js для "${id}" не найден, используется базовый`);

@@ -428,7 +428,7 @@
         }
 
         const visionFallback = response.headers.get('X-Vision-Fallback') === 'true';
-        const sheetNamesRaw  = response.headers.get('X-Sheet-Names') || '';
+        const sheetNamesRaw  = decodeURIComponent(response.headers.get('X-Sheet-Names') || '');
         const blob = await response.blob();
 
         // Имя файла

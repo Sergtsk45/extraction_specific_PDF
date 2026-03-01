@@ -507,7 +507,9 @@ def convert_pdf():
             download_name=output_filename,
         ))
         response.headers['X-Vision-Fallback'] = 'true' if vision_was_used else 'false'
-        response.headers['X-Sheet-Names']     = ','.join(sheet_names)
+        # HTTP-заголовки должны быть ASCII/latin-1; кодируем кириллицу через URL-encoding
+        from urllib.parse import quote
+        response.headers['X-Sheet-Names'] = quote(','.join(sheet_names), safe=',')
         return response
 
     except Exception as e:

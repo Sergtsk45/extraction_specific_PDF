@@ -44,6 +44,7 @@ export class AdvancedModal {
     this.#resetBody();
     this.#configureOptions(manifest);
 
+    this.#dialog.hidden = false;
     this.#dialog.classList.add('is-open');
     document.getElementById('overlay').hidden = false;
     document.body.style.overflow = 'hidden';
@@ -51,6 +52,7 @@ export class AdvancedModal {
 
   close() {
     this.#dialog.classList.remove('is-open');
+    this.#dialog.hidden = true;
     document.getElementById('overlay').hidden = true;
     document.body.style.overflow = '';
     this.#manifest = null;

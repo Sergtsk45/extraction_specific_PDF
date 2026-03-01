@@ -131,7 +131,7 @@ class SpecConverterCard extends ServiceCard {
         font-size:0.65rem;
         color:#c7d2fe;
         font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
-      ">${_escapeHtml(name)}</span>`
+      ">${_escapeHtml(_maybeDecodeURIComponent(name))}</span>`
     ).join('');
   }
 
@@ -163,6 +163,16 @@ function _escapeHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
+function _maybeDecodeURIComponent(str) {
+  const s = String(str ?? '');
+  if (!/%[0-9A-Fa-f]{2}/.test(s)) return s;
+  try {
+    return decodeURIComponent(s);
+  } catch {
+    return s;
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /*  Патч Service Registry: перехват fetch для чтения X-Sheet-Names     */
 /* ------------------------------------------------------------------ */
@@ -190,7 +200,10 @@ function _escapeHtml(str) {
     const sheetNamesHeader = response.headers.get('X-Sheet-Names') ?? '';
     if (!sheetNamesHeader) return response;
 
-    const sheets = sheetNamesHeader.split(',').map(s => s.trim()).filter(Boolean);
+    // Декодируем URL-encoded кириллицу
+    let decoded = sheetNamesHeader;
+    try { decoded = decodeURIComponent(sheetNamesHeader); } catch {}
+    const sheets = decoded.split(',').map(s => s.trim()).filter(Boolean);
     if (!sheets.length) return response;
 
     // Откладываем — карточка обновит состояние после получения blob

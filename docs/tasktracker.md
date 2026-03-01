@@ -95,6 +95,29 @@
 
 ---
 
+### Задача: Настройка автозапуска сервисов (systemd)
+- **Статус**: Завершена
+- **Приоритет**: Высокий
+- **Описание**: Все три сервиса платформы переведены на автозапуск через systemd user-units, чтобы после перезагрузки WSL2 не требовался ручной старт. Обнаружен и исправлен конфликт имён `app.py` vs пакет `app/` в invoice-extractor.
+- **Шаги выполнения**:
+  - [x] Создать `.env` для invoice-extractor (text-only режим, без LLM-ключей)
+  - [x] Исправить `gunicorn.conf.py`: несоответствие переменных `PORT` vs `FLASK_PORT`
+  - [x] Создать `wsgi.py` — WSGI-точка входа для gunicorn (обход конфликта `app.py` / `app/`)
+  - [x] Создать `~/.config/systemd/user/invoice-extractor.service`
+  - [x] Создать `~/.config/systemd/user/spec-converterv2.service`
+  - [x] Создать `~/.config/systemd/user/docplatform-dev.service`
+  - [x] `systemctl --user enable` все три сервиса
+  - [x] `loginctl enable-linger serg45` — запуск user-units при загрузке системы без логина
+  - [x] Проверка health-эндпоинтов после запуска
+- **Файлы**:
+  - `services/invoice-extractor/backend/.env`
+  - `services/invoice-extractor/backend/wsgi.py`
+  - `services/invoice-extractor/backend/gunicorn.conf.py`
+  - `~/.config/systemd/user/{invoice-extractor,spec-converterv2,docplatform-dev}.service`
+- **Зависимости**: invoice-extractor, spec-converterv2, dev_server
+
+---
+
 ### Задача: Внедрение микросервиса invoice-extractor
 - **Статус**: Завершена
 - **Приоритет**: Высокий

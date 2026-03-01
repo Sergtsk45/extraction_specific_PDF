@@ -430,7 +430,7 @@ service-card[hidden] {
   align-items: center;
   justify-content: center;
   gap: var(--space-md);
-  padding: var(--space-xl) * 2;
+  padding: calc(var(--space-xl) * 2);
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
   min-height: 200px;

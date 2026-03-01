@@ -5,6 +5,21 @@
 
 ---
 
+## [2026-03-01] — Настроен автозапуск сервисов через systemd
+
+### Добавлено
+- `~/.config/systemd/user/invoice-extractor.service` — автозапуск парсера счетов (gunicorn, порт 5002)
+- `~/.config/systemd/user/spec-converterv2.service` — автозапуск конвертера спецификаций (порт 5001)
+- `~/.config/systemd/user/docplatform-dev.service` — автозапуск dev-сервера (порт 8080)
+- `services/invoice-extractor/backend/wsgi.py` — WSGI точка входа для gunicorn (обход конфликта `app.py` vs `app/`)
+- `services/invoice-extractor/backend/.env` — конфигурация без LLM (text-only режим)
+
+### Исправлено
+- `gunicorn.conf.py`: несоответствие переменных `PORT` и `FLASK_PORT` — теперь читает оба
+- Включён `loginctl enable-linger` для запуска user-сервисов при загрузке WSL2 без интерактивного логина
+
+---
+
 ## [2026-03-01] — Добавлен микросервис invoice-extractor для парсинга счетов
 
 ### Добавлено

@@ -1,0 +1,25 @@
+{
+  "id": "invoice-extractor",
+  "name": "Парсер счетов",
+  "description": "Извлечение данных из счетов поставщиков в Excel",
+  "version": "1.0.0",
+  "category": "converters",
+  "icon": "🧾",
+  "component": "component.js",
+  "status": "active",
+  "accepts": ["application/pdf"],
+  "supportsVisionOptions": true,
+  "endpoints": {
+    "base": "/api/invoice-extractor",
+    "convert": "POST /convert",
+    "health": "GET /health"
+  },
+  "maxFileSize": 52428800,
+  "outputType": "file-download",
+  "outputMime": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "features": [
+    "Извлечение наименований товаров",
+    "Парсинг стоимости единицы",
+    "Поддержка Vision-режима для сложных счетов"
+  ]
+}

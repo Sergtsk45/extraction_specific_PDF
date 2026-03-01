@@ -3,6 +3,7 @@
     "spec-converterv2",
     "ocr",
     "docx-merger",
-    "project-validator"
+    "project-validator",
+    "invoice-extractor"
   ]
 }
