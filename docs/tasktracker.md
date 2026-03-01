@@ -70,7 +70,7 @@
   - [x] Переход с `config.py` на `.env` + `python-dotenv` для API-ключей
   - [x] Обработка ошибок: badges 👁 (vision via `X-Vision-Fallback`), красная подсветка (ошибка через базовый `ServiceCard`)
   - [x] Кнопка «Только Vision» в Advanced mode (параметр `vision_only` поддержан в `app.py`)
-  - [ ] Тестирование конвертации через оболочку (Quick + Advanced mode) — ручное тестирование
+  - [x] Тестирование конвертации через оболочку (Quick + Advanced mode) — ручное тестирование (загрузка PDF, скачивание xlsx, проверка заголовков `X-Vision-Fallback` / `X-Sheet-Names`)
 - **Файлы**: `services/spec-converterv2/backend/{app.py,spec_utils.py,pdf_text_extractor.py,requirements.txt,.env.example}`, `services/spec-converterv2/frontend/index.html`, `services/spec-converterv2/component.js`
 - **Зависимости**: Shell App, Service Registry
 
@@ -92,6 +92,26 @@
 - **Зависимости**: Shell App, spec-converterv2
 
 ---
+
+---
+
+### Задача: Внедрение микросервиса invoice-extractor
+- **Статус**: Завершена
+- **Приоритет**: Высокий
+- **Описание**: Разработка и интеграция микросервиса для парсинга PDF-счетов поставщиков с извлечением структурированных данных в Excel. Поддержка LLM Vision для сложных/отсканированных документов.
+- **Выполненные шаги**:
+  - [x] INV-001: Проектирование архитектуры парсера счетов
+  - [x] INV-002: Реализация text-first пайплайна (pdfplumber)
+  - [x] INV-003: Интеграция с LLM (Anthropic, OpenAI, OpenRouter)
+  - [x] INV-004: Валидация и нормализация извлечённых данных
+  - [x] INV-005: Генератор XLSX с форматированием
+  - [x] INV-006: Web Component для встраивания в Shell
+  - [x] INV-007: Манифест и регистрация в Service Registry
+  - [x] INV-008: API endpoints: /health, /convert с параметрами (vision_only, provider, output)
+  - [x] INV-009: Обновление документации проекта
+  - [x] INV-010: Интеграция прокси-маршрутов в dev_server.py
+- **Зависимости**: Shell App, Service Registry
+
 
 ## Фаза 2 — Контейнеризация и DevOps
 

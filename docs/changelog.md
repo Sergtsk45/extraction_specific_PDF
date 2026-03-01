@@ -5,6 +5,55 @@
 
 ---
 
+## [2026-03-01] — Добавлен микросервис invoice-extractor для парсинга счетов
+
+### Добавлено
+- **Микросервис `invoice-extractor`** (порт **5002**) — парсинг PDF-счетов поставщиков с автоматическим извлечением структурированных данных в Excel:
+  - Endpoints: `/api/invoice-extractor/health`, `/api/invoice-extractor/convert`
+  - Параметры API: `vision_only` (принудить Vision-режим), `provider` (anthropic/openrouter/openai), `output` (json/xlsx/both)
+  - Поддержка LLM Vision через Anthropic, OpenAI, OpenRouter для распознавания отсканированных счетов
+  - Экспорт структурированных данных в XLSX формат с валидацией
+  - Заголовки ответа: `X-Vision-Fallback`, `X-Document-Type`, `X-Parse-Quality`, `X-Job-Id`, `X-Invoice-Number`
+- **Web Component `invoice-extractor`** — встраивание в Shell App как service-card с поддержкой drag-and-drop
+- **Манифест `services/invoice-extractor/manifest.json`** для регистрации в сервис-реестре
+- **Модули Python**: `extractor.py` (парсер), `llm_client.py` (интеграция с LLM), `excel_builder.py` (генератор XLSX), `validators.py`, `normalizer.py`
+- **Документация**: `services/invoice-extractor/README.md` с инструкциями запуска, API, конфигурацией, примерами Docker
+
+### Изменено
+- **`dev_server.py`** — добавлен прокси для маршрута `/api/invoice-extractor/*` → `http://127.0.0.1:5002/*`
+- **`shell/services.json`** — добавлена регистрация микросервиса `invoice-extractor`
+- **`docs/project.md`** — обновлена документация:
+  - Раздел 3.5: добавлена инструкция запуска бэкенда `invoice-extractor`
+  - Раздел 6: добавлено полное описание микросервиса (стек, API, особенности, структура файлов)
+  - Раздел 11: обновлена целевая структура проекта со слабой папкой `services/invoice-extractor/`
+  - Раздел 13: роадмап обновлён — `invoice-extractor` отмечен как **Реализован**
+  - Мета-информация: версия 1.3, дата 2026-03-01
+- **Локальная разработка** — теперь поддерживает параллельный запуск spec-converterv2 (5001) и invoice-extractor (5002)
+
+### Примечания
+- Text-first пайплайн используется по умолчанию для скорости; Vision-режим включается параметром `vision_only=true` в Advanced mode
+- Временные PDF-файлы удаляются автоматически после обработки
+- Поддерживается выбор LLM-провайдера через переменную окружения `LLM_PROVIDER` в `.env` или параметром API `provider`
+
+---
+
+### Исправлено
+- **Некорректная вёрстка**: Dev-сервер отдавал `/` без редиректа, из‑за чего CSS и JS запрашивались как `/css/...` и `/js/...` (404). Теперь `/` → 302 → `/shell/index.html`, относительные пути работают.
+- **Модальное окно видно при загрузке**: Добавлен атрибут `hidden` у `#advanced-modal` и его переключение в `modal.js` — модалка скрыта даже при отсутствии CSS.
+- **Ошибка в CSS**: `padding: var(--space-xl) * 2` заменено на `calc(var(--space-xl) * 2)` в `.grid-loading`.
+- **HTTP 502 при конвертации**: Flask-бэкенд падал с `UnicodeEncodeError` при отправке кириллических имён листов Excel в заголовке `X-Sheet-Names` (HTTP-заголовки должны быть ASCII/latin-1). Исправлено через URL-encoding (`urllib.parse.quote`) на бэкенде и `decodeURIComponent` на фронтенде (`app.py`, `component.js`, `frontend/index.html`).
+- **Чипы листов в карточке показывались в виде `%D0%...`**: Добавлено безопасное декодирование URL-encoded строк при рендере чипов в `services/spec-converterv2/component.js`.
+- **Залипание старой версии `component.js` в браузере**: В dev-режиме на localhost добавлен cache-busting query при динамическом `import()` компонентов (`shell/js/service-registry.js`), чтобы гарантированно подтягивались свежие правки без ручной очистки кэша.
+
+---
+
+## [2026-03-01] — Dev-сервер для локальной разработки
+
+### Добавлено
+- `dev_server.py` — Python dev-сервер: раздаёт статику из корня, проксирует `/api/spec-converter/*` → `localhost:5001`. Запуск: `python3 dev_server.py` (порт 8080). Требует запущенный Flask backend: `cd services/spec-converterv2/backend && python3 app.py`. Корневой путь `/` перенаправляет на `/shell/index.html`.
+
+---
+
 ## [2026-02-18] — Интеграция spec-converterv2 в оболочку (Dual mode)
 
 ### Добавлено
