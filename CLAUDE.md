@@ -24,9 +24,14 @@
 - Тесты: `pytest services/spec-converterv2/`
 - Lint: `ruff check services/spec-converterv2/`
 
+### Первичная установка (новая машина)
+- `make install` — устанавливает shared/llm_client + зависимости обоих сервисов
+- ⚠️ Без этого шага сервисы падают с `ModuleNotFoundError: No module named 'llm_client'`
+
 ### Все сервисы
+- Установка: `make install`
 - Lint всего: `ruff check services/`
-- Тесты всего: `pytest services/`
+- Тесты всего: `make test`
 
 ## Структура проекта
 ```
