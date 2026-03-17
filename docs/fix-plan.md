@@ -155,22 +155,19 @@
 
 **Подзадачи:**
 
-- [ ] **FIX-005.1** — Добавить `timeout` при создании клиентов в spec-converterv2:
+- [x] **FIX-005.1** — Добавить `timeout` при создании клиентов в spec-converterv2:
   ```python
   # Anthropic
   client = anthropic.Anthropic(api_key=api_key, timeout=120.0)
-  
+
   # OpenAI / OpenRouter
   client = openai.OpenAI(api_key=api_key, timeout=120.0)
-  
+
   # requests (если используется напрямую)
   requests.post(url, timeout=(5, 120))  # (connect, read)
   ```
-- [ ] **FIX-005.2** — Вынести значение таймаута в `.env`:
-  ```
-  REQUEST_TIMEOUT_SEC=120
-  ```
-- [ ] **FIX-005.3** — Проверить аналогичную ситуацию в invoice-extractor (в `llm_client.py`).
+- [x] **FIX-005.2** — Вынести значение таймаута в `.env`: добавлен `REQUEST_TIMEOUT_SEC=120` в `.env.example` обоих сервисов.
+- [x] **FIX-005.3** — Проверить invoice-extractor: уже использовал `TIMEOUT = int(os.getenv("REQUEST_TIMEOUT_SEC", 120))` во всех провайдерах.
 
 **Файлы:** `services/spec-converterv2/backend/app.py`, `services/invoice-extractor/backend/app/llm_client.py`  
 **Оценка:** 30 минут
@@ -185,7 +182,7 @@
 
 **Подзадачи:**
 
-- [ ] **FIX-006.1** — Добавить настройку logging по аналогии с invoice-extractor:
+- [x] **FIX-006.1** — Добавить настройку logging по аналогии с invoice-extractor:
   ```python
   import logging
   logging.basicConfig(
@@ -194,15 +191,13 @@
   )
   logger = logging.getLogger(__name__)
   ```
-- [ ] **FIX-006.2** — Заменить все `print()` вызовы:
+- [x] **FIX-006.2** — Заменить все `print()` вызовы (28 замен в app.py):
   - `print(f"✅ ...")` → `logger.info(...)`
   - `print(f"⚠️ ...")` → `logger.warning(...)`
   - `print(f"❌ ...")` → `logger.error(...)`
-  - Диагностические `print()` в `process_pdf()` и `extract_table_*()` → `logger.debug(...)`
-- [ ] **FIX-006.3** — Добавить `PYTHONUNBUFFERED=1` в `.env.example` (для Docker):
-  ```
-  PYTHONUNBUFFERED=1
-  ```
+  - Диагностические в `process_pdf()` → `logger.debug(...)`
+  - Трейсбек в except → `logger.exception(...)`
+- [x] **FIX-006.3** — Добавить `PYTHONUNBUFFERED=1` в `.env.example` (для Docker).
 
 **Файлы:** `services/spec-converterv2/backend/app.py`, `services/spec-converterv2/backend/pdf_text_extractor.py`  
 **Оценка:** 1 час

@@ -33,9 +33,17 @@ from pdf_text_extractor import has_text_layer, extract_table_from_text, normaliz
 
 load_dotenv()
 
-API_PROVIDER: str | None = os.getenv('API_PROVIDER')
-MODEL_NAME:   str | None = os.getenv('MODEL_NAME')
-MAX_TOKENS:   int        = int(os.getenv('MAX_TOKENS', '16000'))
+import logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+API_PROVIDER:      str | None = os.getenv('API_PROVIDER')
+MODEL_NAME:        str | None = os.getenv('MODEL_NAME')
+MAX_TOKENS:        int        = int(os.getenv('MAX_TOKENS', '16000'))
+REQUEST_TIMEOUT:   int        = int(os.getenv('REQUEST_TIMEOUT_SEC', '120'))
 
 def _get_api_key(provider: str | None) -> str | None:
     if provider == 'anthropic':
@@ -49,9 +57,9 @@ def _get_api_key(provider: str | None) -> str | None:
 API_KEY = _get_api_key(API_PROVIDER)
 
 if API_PROVIDER and API_KEY:
-    print(f"✅ Конфигурация: {API_PROVIDER} / {MODEL_NAME}")
+    logger.info("Конфигурация: %s / %s", API_PROVIDER, MODEL_NAME)
 else:
-    print("⚠️  Переменные окружения не настроены (только text-режим). Задайте API_PROVIDER и ключ в .env")
+    logger.warning("Переменные окружения не настроены (только text-режим). Задайте API_PROVIDER и ключ в .env")
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Flask
@@ -198,13 +206,13 @@ def _parse_json_response(response_text: str) -> dict:
                     rows[i] = row[:target_cols]
         return {'sheet_name': data.get('sheet_name', 'Спецификация'), 'rows': rows}
     except json.JSONDecodeError as e:
-        print(f"     ⚠️ JSON parse error: {e}")
+        logger.warning("JSON parse error: %s", e)
         return {'sheet_name': 'Спецификация', 'rows': []}
 
 
 def _extract_via_anthropic(image_data: bytes, api_key: str, model: str, media_type: str) -> dict:
     import anthropic
-    client  = anthropic.Anthropic(api_key=api_key)
+    client  = anthropic.Anthropic(api_key=api_key, timeout=REQUEST_TIMEOUT)
     b64     = base64.b64encode(image_data).decode()
     message = client.messages.create(
         model=model, max_tokens=MAX_TOKENS, temperature=0,
@@ -234,7 +242,7 @@ def _extract_via_openrouter(image_data: bytes, api_key: str, model: str, media_t
             ],
             'max_tokens': MAX_TOKENS, 'temperature': 0,
         },
-        timeout=180,
+        timeout=REQUEST_TIMEOUT,
     )
     if resp.status_code != 200:
         raise RuntimeError(f'OpenRouter error {resp.status_code}: {resp.text[:300]}')
@@ -243,7 +251,7 @@ def _extract_via_openrouter(image_data: bytes, api_key: str, model: str, media_t
 
 def _extract_via_openai(image_data: bytes, api_key: str, model: str, media_type: str) -> dict:
     import openai
-    client = openai.OpenAI(api_key=api_key)
+    client = openai.OpenAI(api_key=api_key, timeout=REQUEST_TIMEOUT)
     b64    = base64.b64encode(image_data).decode()
     resp   = client.chat.completions.create(
         model=model,
@@ -293,7 +301,7 @@ def _pdf_to_images(pdf_path: str) -> list[tuple[bytes, str]]:
                 pass
 
         images.append((img_data, fmt))
-        print(f'     Стр.{page_num + 1}: {pix.width}×{pix.height}px, {len(img_data) // 1024}KB ({fmt})')
+        logger.debug("Стр.%d: %dx%dpx, %dKB (%s)", page_num + 1, pix.width, pix.height, len(img_data) // 1024, fmt)
 
     doc.close()
     return images
@@ -347,7 +355,7 @@ def _create_excel(pages_data: list, output_path: str) -> list[str]:
             ) and any(str(c).strip() for c in row)
         ]
 
-        print(f"     📋 Лист '{sheet_name}': {len(filtered)} строк")
+        logger.debug("Лист '%s': %d строк", sheet_name, len(filtered))
         builder.create_sheet(sheet_name, filtered)
         sheet_names.append(sheet_name)
 
@@ -375,36 +383,36 @@ def process_pdf(pdf_path: str, provider: str | None = None, api_key: str | None 
     vision_was_used  = False
     images: list | None = None
 
-    print('  🔍 Проверка текстового слоя...')
+    logger.debug("Проверка текстового слоя...")
     text_flags = has_text_layer(pdf_path)
-    print(f'     Страниц с текстом: {sum(text_flags)}/{len(text_flags)}')
+    logger.debug("Страниц с текстом: %d/%d", sum(text_flags), len(text_flags))
 
     with pdfplumber.open(pdf_path) as pdf:
         for i, page in enumerate(pdf.pages):
             page_num = i + 1
 
             if not force_vision and text_flags[i]:
-                print(f'  📝 Страница {page_num}: текстовый режим')
+                logger.debug("Страница %d: текстовый режим", page_num)
                 try:
                     raw_rows, pdf_header = extract_table_from_text(page)
                     if raw_rows and len(raw_rows) > 1:
                         page_data = normalize_table_to_9cols(raw_rows, page_num, pdf_header)
                         page_data['page_num'] = page_num
                         pages_data.append(page_data)
-                        print(f"     ✓ '{page_data['sheet_name']}', {len(page_data['rows'])} строк")
+                        logger.info("Страница %d: текст — '%s', %d строк", page_num, page_data['sheet_name'], len(page_data['rows']))
                         continue
-                    print('     ⚠️ Пустая таблица, переход на vision-режим')
+                    logger.warning("Страница %d: пустая таблица, переход на vision-режим", page_num)
                 except Exception as e:
-                    print(f'     ⚠️ Ошибка текстового режима: {e}, переход на vision-режим')
+                    logger.warning("Страница %d: ошибка текстового режима (%s), переход на vision-режим", page_num, e)
 
             # Vision fallback / force_vision
             if not eff_provider or not eff_key:
-                print(f'  ⛔ Страница {page_num}: vision недоступен (API не настроен)')
+                logger.warning("Страница %d: vision недоступен (API не настроен)", page_num)
                 continue
 
-            print(f'  🖼️ Страница {page_num}: vision-режим')
+            logger.debug("Страница %d: vision-режим", page_num)
             if images is None:
-                print('     Генерация изображений...')
+                logger.debug("Генерация изображений...")
                 images = _pdf_to_images(pdf_path)
 
             image_data, img_fmt = images[i]
@@ -418,24 +426,24 @@ def process_pdf(pdf_path: str, provider: str | None = None, api_key: str | None 
                     if page_data and page_data.get('rows') and len(page_data['rows']) > 1:
                         page_data['page_num'] = page_num
                         pages_data.append(page_data)
-                        print(f"     ✓ Лист '{page_data.get('sheet_name', '?')}', {len(page_data['rows'])} строк")
+                        logger.info("Страница %d: vision — '%s', %d строк", page_num, page_data.get('sheet_name', '?'), len(page_data['rows']))
                         vision_was_used = True
                         success = True
                         break
-                    print(f'     ⚠️ Пустой результат (попытка {attempt + 1}/3)')
+                    logger.warning("Страница %d: пустой результат (попытка %d/3)", page_num, attempt + 1)
                 except Exception as e:
                     err = str(e).lower()
                     is_network = any(k in err for k in ('resolve', 'connection', 'timeout', 'gaierror'))
                     if is_network:
                         wait_sec = 5 * (attempt + 1)
-                        print(f'     🌐 Сетевая ошибка (попытка {attempt + 1}/3), жду {wait_sec}с: {str(e)[:120]}')
+                        logger.warning("Страница %d: сетевая ошибка (попытка %d/3), жду %dс: %s", page_num, attempt + 1, wait_sec, str(e)[:120])
                     else:
-                        print(f'     ❌ Ошибка (попытка {attempt + 1}/3): {str(e)[:200]}')
+                        logger.error("Страница %d: ошибка (попытка %d/3): %s", page_num, attempt + 1, str(e)[:200])
                 if attempt < 2:
                     time.sleep(wait_sec)
 
             if not success:
-                print(f'     ⛔ Страница {page_num} пропущена после 3 попыток')
+                logger.error("Страница %d пропущена после 3 попыток", page_num)
 
     return pages_data, vision_was_used
 
@@ -511,11 +519,11 @@ def convert_pdf():
 
         eff_provider = req_provider or API_PROVIDER
         eff_key      = req_api_key  or API_KEY
-        print(f'\n📄 {original_name}')
+        logger.info("Обработка файла: %s", original_name)
         if eff_provider and eff_key:
-            print(f'   Vision: {eff_provider}/{req_model}{"  [force]" if vision_only else ""}')
+            logger.info("Vision: %s/%s%s", eff_provider, req_model, "  [force]" if vision_only else "")
         else:
-            print('   ⚠️ Vision недоступен (API не настроен) — только text-режим')
+            logger.warning("Vision недоступен (API не настроен) — только text-режим")
 
         pages_data, vision_was_used = process_pdf(
             pdf_path,
@@ -527,7 +535,7 @@ def convert_pdf():
         if not pages_data:
             return jsonify({'error': 'Нет данных для Excel', 'code': 'EMPTY_RESULT'}), 500
 
-        print('  📊 Создание Excel...')
+        logger.info("Создание Excel...")
         output_filename = filename.rsplit('.', 1)[0] + '.xlsx'
         output_path     = os.path.join(OUTPUT_FOLDER, output_filename)
         download_name   = original_name.rsplit('.', 1)[0] + '.xlsx'
@@ -537,7 +545,7 @@ def convert_pdf():
         if not sheet_names:
             return jsonify({'error': 'Ошибка создания Excel', 'code': 'EXCEL_ERROR'}), 500
 
-        print(f'  ✅ {output_filename}\n')
+        logger.info("Готово: %s", output_filename)
 
         response = make_response(send_file(
             output_path,
@@ -552,9 +560,7 @@ def convert_pdf():
         return response
 
     except Exception as e:
-        print(f'❌ {e}')
-        import traceback
-        traceback.print_exc()
+        logger.exception("Ошибка обработки: %s", e)
         return jsonify({'error': str(e), 'code': 'INTERNAL_ERROR'}), 500
     finally:
         if pdf_path and os.path.exists(pdf_path):
@@ -577,14 +583,9 @@ def health():
 
 
 if __name__ == '__main__':
-    print('\n' + '=' * 70)
-    print('🚀 Конвертер спецификаций (services/spec-converterv2)')
-    print('=' * 70)
+    logger.info("Конвертер спецификаций (services/spec-converterv2)")
     if API_PROVIDER and API_KEY:
-        print(f'✅ Провайдер: {API_PROVIDER}')
-        print(f'✅ Модель:    {MODEL_NAME}')
+        logger.info("Провайдер: %s, Модель: %s", API_PROVIDER, MODEL_NAME)
     else:
-        print('❌ API не настроен! Задайте переменные в .env')
-    print('\n📝 Standalone: services/spec-converterv2/frontend/index.html')
-    print('=' * 70 + '\n')
+        logger.error("API не настроен! Задайте переменные в .env")
     app.run(debug=True, host='0.0.0.0', port=5001)
