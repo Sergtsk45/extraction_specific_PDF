@@ -10,18 +10,28 @@
 """
 
 import http.server
+import os
 import socketserver
 import urllib.request
 import urllib.error
 import sys
 from pathlib import Path
 
-PORT = 8080
+_ROOT = Path(__file__).parent
+
+# Load root .env if present (python-dotenv optional dep — fall back to os.getenv)
+try:
+    from dotenv import load_dotenv
+    load_dotenv(_ROOT / ".env")
+except ImportError:
+    pass
+
+PORT = int(os.getenv("SHELL_PORT", "8080"))
 SPEC_CONVERTER_PREFIX = "/api/spec-converter"
-SPEC_CONVERTER_BACKEND = "http://127.0.0.1:5001"
+SPEC_CONVERTER_BACKEND = "http://127.0.0.1:" + os.getenv("SPEC_CONVERTER_PORT", "5001")
 INVOICE_EXTRACTOR_PREFIX = "/api/invoice-extractor"
-INVOICE_EXTRACTOR_BACKEND = "http://127.0.0.1:5002"
-ROOT = Path(__file__).parent
+INVOICE_EXTRACTOR_BACKEND = "http://127.0.0.1:" + os.getenv("INVOICE_EXTRACTOR_PORT", "5002")
+ROOT = _ROOT
 
 
 class DevHandler(http.server.SimpleHTTPRequestHandler):

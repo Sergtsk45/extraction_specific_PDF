@@ -1,4 +1,4 @@
-"""Tests for GET /health endpoint of spec-converterv2."""
+"""Tests for GET /health and /health/details endpoints of spec-converterv2."""
 
 
 def test_health_returns_200(client):
@@ -26,16 +26,21 @@ def test_health_version_value(client):
     assert data['version'] == '2.0.0'
 
 
-def test_health_provider_field_present(client):
+def test_health_no_provider_field(client):
     data = client.get('/health').get_json()
-    assert 'provider' in data
+    assert 'provider' not in data
 
 
-def test_health_model_field_present(client):
+def test_health_no_model_field(client):
     data = client.get('/health').get_json()
-    assert 'model' in data
+    assert 'model' not in data
 
 
-def test_health_configured_field_present(client):
+def test_health_no_configured_field(client):
     data = client.get('/health').get_json()
-    assert 'configured' in data
+    assert 'configured' not in data
+
+
+def test_health_details_forbidden_from_non_localhost(client):
+    response = client.get('/health/details', environ_base={'REMOTE_ADDR': '1.2.3.4'})
+    assert response.status_code == 403

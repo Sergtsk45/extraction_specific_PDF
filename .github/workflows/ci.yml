@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install system deps (libmagic)
+        run: sudo apt-get install -y libmagic1
+
+      - name: Install shared llm_client
+        run: pip install -e shared/llm_client
+
+      - name: Install spec-converterv2 deps
+        run: pip install -r services/spec-converterv2/backend/requirements.txt
+
+      - name: Install invoice-extractor deps
+        run: pip install -r services/invoice-extractor/backend/requirements.txt
+
+      - name: Test spec-converterv2
+        run: pytest services/spec-converterv2/ -v --tb=short
+
+      - name: Test invoice-extractor
+        run: pytest services/invoice-extractor/ -v --tb=short
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install ruff
+        run: pip install ruff
+
+      - name: Lint
+        run: ruff check services/ shared/

@@ -345,7 +345,7 @@
 
 **Подзадачи:**
 
-- [ ] **FIX-010.1** — Создать `.github/workflows/ci.yml`:
+- [x] **FIX-010.1** — Создать `.github/workflows/ci.yml`:
   ```yaml
   name: CI
   on: [push, pull_request]
@@ -372,15 +372,11 @@
         - run: pip install ruff
         - run: ruff check .
   ```
-- [ ] **FIX-010.2** — Добавить `ruff.toml` для линтинга:
-  ```toml
-  line-length = 120
-  target-version = "py311"
-  ```
+- [x] **FIX-010.2** — Добавить `ruff.toml` (line-length=120, target=py311).
 - [ ] **FIX-010.3** — (Опционально) Добавить шаг деплоя через SSH или Docker push.
 
-**Файлы:** `.github/workflows/ci.yml`, `ruff.toml`  
-**Оценка:** 2 часа  
+**Файлы:** `.github/workflows/ci.yml`, `ruff.toml`
+**Оценка:** 2 часа
 **Зависимости:** FIX-009 (тесты)
 
 ---
@@ -393,14 +389,9 @@
 
 **Подзадачи:**
 
-- [ ] **FIX-011.1** — Централизовать порты в корневом `.env`:
-  ```
-  SHELL_PORT=8080
-  SPEC_CONVERTER_PORT=5001
-  INVOICE_EXTRACTOR_PORT=5002
-  ```
-- [ ] **FIX-011.2** — Обновить `dev_server.py` для чтения портов из `.env` (через `python-dotenv`).
-- [ ] **FIX-011.3** — Обновить `shell/js/config.js`: сделать base URL настраиваемым или автоопределяемым по `window.location`.
+- [x] **FIX-011.1** — Централизовать порты в корневом `.env.example` (SHELL_PORT, SPEC_CONVERTER_PORT, INVOICE_EXTRACTOR_PORT).
+- [x] **FIX-011.2** — Обновить `dev_server.py` для чтения портов из `.env` (через `python-dotenv`, fallback на defaults).
+- [x] **FIX-011.3** — `shell/js/config.js` уже использует относительные пути (`servicesBase: ''`) — изменений не требуется.
 
 **Оценка:** 1 час
 
@@ -412,11 +403,8 @@
 
 **Подзадачи:**
 
-- [ ] **FIX-012.1** — Оставить минимальный ответ для внешних потребителей:
-  ```json
-  {"status": "ok", "service": "spec-converterv2", "version": "2.0.0"}
-  ```
-- [ ] **FIX-012.2** — Вынести детальную информацию в отдельный endpoint `/health/details` (или отдавать только при локальном запросе).
+- [x] **FIX-012.1** — `/health` теперь возвращает только `{status, service, version}`.
+- [x] **FIX-012.2** — Детали вынесены в `/health/details` (доступен только с 127.0.0.1/::1, иначе 403).
 
 **Оценка:** 15 минут
 
@@ -428,11 +416,7 @@
 
 **Подзадачи:**
 
-- [ ] **FIX-013.1** — Объединить в один `README.md`: быстрый старт, архитектура, API, провайдеры.
-- [ ] **FIX-013.2** — `WSL_DNS_FIX.md` → перенести в `docs/troubleshooting.md` (это не специфика сервиса).
-- [ ] **FIX-013.3** — `ИСПРАВЛЕНИЕ.md` → архивировать или удалить (исторический документ, исправления уже применены).
-- [ ] **FIX-013.4** — `TEXT_FIRST_PIPELINE.md` → оставить как `docs/text-first-pipeline.md` (полезная техническая документация).
-- [ ] **FIX-013.5** — `OPENROUTER_GUIDE.md` → секция в README (после FIX-007 провайдеры будут в shared).
+- [x] **FIX-013.1–5** — Все хаотичные файлы (`README.md`, `QUICKSTART.md`, `OPENROUTER_GUIDE.md`, `WSL_DNS_FIX.md`, `ИСПРАВЛЕНИЕ.md`, `TEXT_FIRST_PIPELINE.md`, `switch_provider.sh`, `start.sh`) уже были удалены в FIX-001. Сервис содержит только `backend/`, `frontend/`, `manifest.json`. Задача выполнена.
 
 **Оценка:** 1–2 часа
 

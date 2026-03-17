@@ -463,6 +463,19 @@ def convert_pdf():
 @app.route('/health', methods=['GET'])
 def health():
     return jsonify({
+        'status':  'ok',
+        'service': 'spec-converterv2',
+        'version': '2.0.0',
+    })
+
+
+@app.route('/health/details', methods=['GET'])
+def health_details():
+    """Детальный health-check — только для localhost."""
+    remote = request.remote_addr or ''
+    if remote not in ('127.0.0.1', '::1'):
+        return jsonify({'error': 'forbidden'}), 403
+    return jsonify({
         'status':     'ok',
         'service':    'spec-converterv2',
         'version':    '2.0.0',
