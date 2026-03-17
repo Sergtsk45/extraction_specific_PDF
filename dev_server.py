@@ -88,10 +88,13 @@ class DevHandler(http.server.SimpleHTTPRequestHandler):
 
 
 def main():
+    print(f"\n{'='*60}")
+    print(f"  [DEV] DocPlatform Dev Server — только для разработки!")
+    print(f"  Для production используйте Nginx: gateway/nginx.conf")
+    print(f"{'='*60}")
     socketserver.TCPServer.allow_reuse_address = True
     with socketserver.TCPServer(("", PORT), DevHandler) as httpd:
-        print(f"\n{'='*60}")
-        print(f"  DocPlatform Dev Server — http://localhost:{PORT}")
+        print(f"  Dev Server запущен: http://localhost:{PORT}")
         print(f"  Прокси:")
         print(f"    • {SPEC_CONVERTER_PREFIX} → {SPEC_CONVERTER_BACKEND}")
         print(f"    • {INVOICE_EXTRACTOR_PREFIX} → {INVOICE_EXTRACTOR_BACKEND}")

@@ -248,7 +248,7 @@
 
 **Подзадачи:**
 
-- [ ] **FIX-008.1** — Создать `gateway/nginx.conf`:
+- [x] **FIX-008.1** — Создать `gateway/nginx.conf`:
   ```nginx
   worker_processes auto;
   
@@ -305,9 +305,9 @@
       }
   }
   ```
-- [ ] **FIX-008.2** — После внедрения Nginx убрать `flask-cors` из обоих сервисов (CORS будет на уровне gateway).
-- [ ] **FIX-008.3** — Обновить systemd-юниты: dev_server → nginx.
-- [ ] **FIX-008.4** — Обновить `dev_server.py`: оставить для разработки, добавить предупреждение "Для production используйте Nginx".
+- [x] **FIX-008.2** — Убрать `flask-cors` из обоих сервисов. Через gateway (Nginx/dev_server.py) фронт и API на одном origin :8080 — CORS не нужен.
+- [x] **FIX-008.3** — Создать production systemd-юниты в `gateway/systemd/` (nginx.service, spec-converterv2.service с gunicorn, invoice-extractor.service). Обновлён deployed unit spec-converterv2 (python app.py → gunicorn). Добавлены wsgi.py и gunicorn.conf.py для spec-converterv2.
+- [x] **FIX-008.4** — Обновлён `dev_server.py`: добавлено предупреждение "[DEV] только для разработки, для production — gateway/nginx.conf".
 
 **Файлы:** `gateway/nginx.conf`, systemd units  
 **Оценка:** 2–3 часа  

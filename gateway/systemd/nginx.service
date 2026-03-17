@@ -1,0 +1,21 @@
+[Unit]
+Description=Nginx Gateway (DocPlatform)
+After=network.target invoice-extractor.service spec-converterv2.service
+Wants=invoice-extractor.service spec-converterv2.service
+
+[Service]
+Type=forking
+PIDFile=/run/nginx.pid
+ExecStartPre=/usr/sbin/nginx -c /home/user/projects/extraction_specific_PDF/gateway/nginx.conf -t
+ExecStart=/usr/sbin/nginx -c /home/user/projects/extraction_specific_PDF/gateway/nginx.conf
+ExecReload=/bin/kill -s HUP $MAINPID
+ExecStop=/bin/kill -s QUIT $MAINPID
+PrivateTmp=true
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=docplatform-nginx
+
+[Install]
+WantedBy=default.target

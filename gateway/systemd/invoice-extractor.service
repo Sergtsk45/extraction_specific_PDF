@@ -1,0 +1,17 @@
+[Unit]
+Description=Invoice Extractor Backend (Gunicorn)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/user/projects/extraction_specific_PDF/services/invoice-extractor/backend
+EnvironmentFile=/home/user/projects/extraction_specific_PDF/services/invoice-extractor/backend/.env
+ExecStart=/home/user/.local/bin/gunicorn --config gunicorn.conf.py wsgi:app
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=invoice-extractor
+
+[Install]
+WantedBy=default.target

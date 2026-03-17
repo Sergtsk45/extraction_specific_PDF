@@ -1,0 +1,17 @@
+[Unit]
+Description=Spec Converter v2 Backend (Gunicorn)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/user/projects/extraction_specific_PDF/services/spec-converterv2/backend
+EnvironmentFile=/home/user/projects/extraction_specific_PDF/services/spec-converterv2/backend/.env
+ExecStart=/home/user/.local/bin/gunicorn --config gunicorn.conf.py wsgi:app
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=spec-converterv2
+
+[Install]
+WantedBy=default.target

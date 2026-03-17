@@ -11,7 +11,6 @@ from pathlib import Path
 from urllib.parse import quote
 
 from flask import Flask, request, jsonify, send_file
-from flask_cors import CORS
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -83,10 +82,6 @@ OUTPUT_FOLDER.mkdir(parents=True, exist_ok=True)
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = MAX_CONTENT_LENGTH
 
-# CORS: ограничиваем allowed origins
-ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:8080").split(",")
-ALLOWED_ORIGINS = [origin.strip() for origin in ALLOWED_ORIGINS]
-CORS(app, origins=ALLOWED_ORIGINS)
 
 
 # ── Утилиты ────────────────────────────────────────────────────

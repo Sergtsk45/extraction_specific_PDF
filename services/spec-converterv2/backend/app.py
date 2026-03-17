@@ -16,7 +16,6 @@ from collections import Counter
 
 import pdfplumber
 from flask import Flask, request, send_file, jsonify, make_response
-from flask_cors import CORS
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 
@@ -65,8 +64,6 @@ else:
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50 MB
-ALLOWED_ORIGINS = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", "http://localhost:8080").split(",")]
-CORS(app, origins=ALLOWED_ORIGINS)
 
 _BASE_DIR     = os.path.dirname(__file__)
 UPLOAD_FOLDER = os.path.join(_BASE_DIR, '..', 'uploads')
