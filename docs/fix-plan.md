@@ -212,23 +212,27 @@
 
 **Подзадачи:**
 
-- [ ] **FIX-007.1** — Создать общий пакет `shared/llm_client/`:
+- [x] **FIX-007.1** — Создать общий пакет `shared/llm_client/`:
   ```
   project-root/
   ├── shared/
   │   └── llm_client/
-  │       ├── __init__.py
-  │       ├── client.py        # Универсальный клиент (Anthropic, OpenAI, OpenRouter)
-  │       ├── vision.py        # Отправка изображений, парсинг JSON
-  │       └── config.py        # Загрузка конфигурации из .env
+  │       ├── pyproject.toml
+  │       └── llm_client/
+  │           ├── __init__.py
+  │           ├── client.py    # call_vision_llm(images, prompt, provider, ...)
+  │           ├── vision.py    # pdf_to_images, parse_json_response
+  │           └── config.py    # get_api_key, DEFAULT_TIMEOUT, DEFAULT_MAX_TOKENS
   ```
-- [ ] **FIX-007.2** — Вынести общие функции:
-  - `create_llm_client(provider, api_key, timeout)` → возвращает клиент нужного провайдера
-  - `extract_from_image(client, image_data, system_prompt, user_prompt)` → JSON-ответ
+- [x] **FIX-007.2** — Вынести общие функции:
+  - `call_vision_llm(images, prompt, provider, *, system_prompt, api_key, model, timeout, max_tokens, temperature)` → str
+  - `pdf_to_images(pdf_path, zoom=4, max_size_bytes=4MB)` → list[(bytes, media_type)]
   - `parse_json_response(raw_text)` → dict
-  - `pdf_to_images(pdf_path, zoom=4, max_size_bytes=4MB)` → список изображений
-- [ ] **FIX-007.3** — Рефакторинг обоих сервисов: заменить локальные функции на импорт из `shared/`.
-- [ ] **FIX-007.4** — Добавить `shared/` в `sys.path` или оформить как installable package (`pip install -e shared/`).
+  - `get_api_key(provider)` → str | None
+- [x] **FIX-007.3** — Рефакторинг обоих сервисов: заменить локальные функции на импорт из `shared/`.
+  - invoice-extractor: `app/llm_client.py` — тонкая обёртка над shared, сохранён оригинальный API
+  - spec-converterv2: убраны `_extract_via_*`, `_extract_from_image`, `_pdf_to_images`, `_parse_json_response` (105 строк дубликатов)
+- [x] **FIX-007.4** — Оформлен как installable package (`pip install -e shared/llm_client`); добавлен в `requirements.txt` обоих сервисов.
 
 **Файлы:** новая директория `shared/`, оба `app.py`  
 **Оценка:** 3–4 часа  

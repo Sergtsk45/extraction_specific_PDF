@@ -1,0 +1,12 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "llm-client-shared"
+version = "1.0.0"
+description = "Shared LLM Vision client for extraction_specific_PDF services"
+requires-python = ">=3.10"
+dependencies = [
+    "requests>=2.32.0",
+]

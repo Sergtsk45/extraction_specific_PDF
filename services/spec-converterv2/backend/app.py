@@ -11,18 +11,16 @@
 import os
 import re
 import uuid
-import base64
-import json
 import time
 from collections import Counter
-from io import BytesIO
 
 import pdfplumber
-import fitz
 from flask import Flask, request, send_file, jsonify, make_response
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
+
+from llm_client import call_vision_llm, pdf_to_images, parse_json_response
 
 from spec_utils import SpecificationExcelBuilder
 from pdf_text_extractor import has_text_layer, extract_table_from_text, normalize_table_to_9cols
@@ -180,131 +178,21 @@ EXTRACTION_PROMPT = """Извлеки ВСЕ данные из таблицы с
 }"""
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Vision extraction helpers
+# Spec-specific response normalization
 # ──────────────────────────────────────────────────────────────────────────────
 
-def _parse_json_response(response_text: str) -> dict:
-    """Парсит JSON из ответа LLM с устойчивостью к markdown-обёрткам."""
-    json_match = re.search(r'```(?:json)?\s*(.*?)\s*```', response_text, re.DOTALL)
-    json_str = json_match.group(1) if json_match else response_text.strip()
-    json_str = json_str.strip('\ufeff\u200b\u200c\u200d')
-
-    if not json_str.startswith('{'):
-        m = re.search(r'\{.*\}', json_str, re.DOTALL)
-        if m:
-            json_str = m.group(0)
-
-    try:
-        data = json.loads(json_str)
-        rows = data.get('rows', [])
-        if rows:
-            target_cols = max(max(len(r) for r in rows), 9)
-            for i, row in enumerate(rows):
-                if len(row) < target_cols:
-                    rows[i] = row + [''] * (target_cols - len(row))
-                elif len(row) > target_cols:
-                    rows[i] = row[:target_cols]
-        return {'sheet_name': data.get('sheet_name', 'Спецификация'), 'rows': rows}
-    except json.JSONDecodeError as e:
-        logger.warning("JSON parse error: %s", e)
-        return {'sheet_name': 'Спецификация', 'rows': []}
-
-
-def _extract_via_anthropic(image_data: bytes, api_key: str, model: str, media_type: str) -> dict:
-    import anthropic
-    client  = anthropic.Anthropic(api_key=api_key, timeout=REQUEST_TIMEOUT)
-    b64     = base64.b64encode(image_data).decode()
-    message = client.messages.create(
-        model=model, max_tokens=MAX_TOKENS, temperature=0,
-        system=SYSTEM_PROMPT,
-        messages=[{'role': 'user', 'content': [
-            {'type': 'image', 'source': {'type': 'base64', 'media_type': media_type, 'data': b64}},
-            {'type': 'text', 'text': EXTRACTION_PROMPT},
-        ]}],
-    )
-    return _parse_json_response(message.content[0].text)
-
-
-def _extract_via_openrouter(image_data: bytes, api_key: str, model: str, media_type: str) -> dict:
-    import requests as req
-    b64  = base64.b64encode(image_data).decode()
-    resp = req.post(
-        url='https://openrouter.ai/api/v1/chat/completions',
-        headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
-        json={
-            'model': model,
-            'messages': [
-                {'role': 'system', 'content': SYSTEM_PROMPT},
-                {'role': 'user', 'content': [
-                    {'type': 'image_url', 'image_url': {'url': f'data:{media_type};base64,{b64}'}},
-                    {'type': 'text', 'text': EXTRACTION_PROMPT},
-                ]},
-            ],
-            'max_tokens': MAX_TOKENS, 'temperature': 0,
-        },
-        timeout=REQUEST_TIMEOUT,
-    )
-    if resp.status_code != 200:
-        raise RuntimeError(f'OpenRouter error {resp.status_code}: {resp.text[:300]}')
-    return _parse_json_response(resp.json()['choices'][0]['message']['content'])
-
-
-def _extract_via_openai(image_data: bytes, api_key: str, model: str, media_type: str) -> dict:
-    import openai
-    client = openai.OpenAI(api_key=api_key, timeout=REQUEST_TIMEOUT)
-    b64    = base64.b64encode(image_data).decode()
-    resp   = client.chat.completions.create(
-        model=model,
-        messages=[
-            {'role': 'system', 'content': SYSTEM_PROMPT},
-            {'role': 'user', 'content': [
-                {'type': 'image_url', 'image_url': {'url': f'data:{media_type};base64,{b64}', 'detail': 'high'}},
-                {'type': 'text', 'text': EXTRACTION_PROMPT},
-            ]},
-        ],
-        max_tokens=MAX_TOKENS, temperature=0,
-    )
-    return _parse_json_response(resp.choices[0].message.content)
-
-
-def _extract_from_image(image_data: bytes, provider: str, api_key: str, model: str,
-                         media_type: str = 'image/png') -> dict:
-    if provider == 'anthropic':
-        return _extract_via_anthropic(image_data, api_key, model, media_type)
-    if provider == 'openrouter':
-        return _extract_via_openrouter(image_data, api_key, model, media_type)
-    if provider == 'openai':
-        return _extract_via_openai(image_data, api_key, model, media_type)
-    raise ValueError(f'Неизвестный провайдер: {provider}')
-
-
-def _pdf_to_images(pdf_path: str) -> list[tuple[bytes, str]]:
-    """Конвертирует PDF в изображения ~288 DPI. Большие PNG пересохраняет в JPEG."""
-    doc = fitz.open(pdf_path)
-    images = []
-    max_png = 4 * 1024 * 1024
-
-    for page_num, page in enumerate(doc):
-        pix      = page.get_pixmap(matrix=fitz.Matrix(4, 4))
-        img_data = pix.tobytes('png')
-        fmt      = 'PNG'
-
-        if len(img_data) > max_png:
-            try:
-                from PIL import Image
-                img = Image.open(BytesIO(img_data))
-                buf = BytesIO()
-                img.save(buf, format='JPEG', quality=92)
-                img_data = buf.getvalue()
-                fmt = 'JPEG'
-            except ImportError:
-                pass
-
-        images.append((img_data, fmt))
-        logger.debug("Стр.%d: %dx%dpx, %dKB (%s)", page_num + 1, pix.width, pix.height, len(img_data) // 1024, fmt)
-
-    doc.close()
-    return images
+def _parse_spec_response(response_text: str) -> dict:
+    """Парсит JSON-ответ LLM и нормализует строки таблицы до 9 колонок."""
+    data = parse_json_response(response_text)
+    rows = data.get('rows', [])
+    if rows:
+        target_cols = max(max(len(r) for r in rows), 9)
+        for i, row in enumerate(rows):
+            if len(row) < target_cols:
+                rows[i] = row + [''] * (target_cols - len(row))
+            elif len(row) > target_cols:
+                rows[i] = row[:target_cols]
+    return {'sheet_name': data.get('sheet_name', 'Спецификация'), 'rows': rows}
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Excel builder
@@ -413,16 +301,21 @@ def process_pdf(pdf_path: str, provider: str | None = None, api_key: str | None 
             logger.debug("Страница %d: vision-режим", page_num)
             if images is None:
                 logger.debug("Генерация изображений...")
-                images = _pdf_to_images(pdf_path)
+                images = pdf_to_images(pdf_path)
 
-            image_data, img_fmt = images[i]
-            media_type = 'image/jpeg' if img_fmt == 'JPEG' else 'image/png'
+            image_data, _media_type = images[i]
             success = False
 
             for attempt in range(3):
                 wait_sec = 3
                 try:
-                    page_data = _extract_from_image(image_data, eff_provider, eff_key, eff_model, media_type)
+                    raw_text = call_vision_llm(
+                        [image_data], EXTRACTION_PROMPT, eff_provider,
+                        system_prompt=SYSTEM_PROMPT,
+                        api_key=eff_key, model=eff_model,
+                        max_tokens=MAX_TOKENS, timeout=REQUEST_TIMEOUT, temperature=0,
+                    )
+                    page_data = _parse_spec_response(raw_text)
                     if page_data and page_data.get('rows') and len(page_data['rows']) > 1:
                         page_data['page_num'] = page_num
                         pages_data.append(page_data)
