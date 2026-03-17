@@ -20,11 +20,11 @@ def validate_invoice_data(data: dict) -> list[str]:
         warnings.append("Не найдено ни одной строки товаров/услуг")
         return warnings
 
-    # 1. qty × price ≈ amount_w_vat (по строкам)
+    # 1. qty × price ≈ amount_wo_vat (цена — без НДС)
     for i, item in enumerate(items, 1):
         qty   = _num(item.get("qty"))
         price = _num(item.get("price"))
-        amt   = _num(item.get("amount_w_vat")) or _num(item.get("amount_wo_vat"))
+        amt   = _num(item.get("amount_wo_vat")) or _num(item.get("amount_w_vat"))
 
         if qty and price and amt:
             expected = round(qty * price, 2)

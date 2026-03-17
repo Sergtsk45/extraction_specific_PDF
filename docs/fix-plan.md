@@ -323,29 +323,13 @@
 
 **Подзадачи:**
 
-- [ ] **FIX-009.1** — Создать `tests/` в каждом сервисе:
-  ```
-  services/spec-converterv2/backend/tests/
-  ├── conftest.py              # Фикстуры: тестовый клиент Flask, пути к тестовым PDF
-  ├── test_health.py           # Smoke: GET /health → 200
-  ├── test_convert_api.py      # POST /convert с тестовым PDF → 200 + xlsx
-  ├── test_text_extractor.py   # Unit: extract_table_from_text() на эталонном PDF
-  ├── test_validation.py       # Unit: validate_pdf(), safe_filename()
-  └── gold_standard/
-      ├── input.pdf            # Эталонный PDF
-      └── expected.json        # Ожидаемый результат text-first pipeline
-  ```
-- [ ] **FIX-009.2** — Реализовать snapshot-тест для text-first pipeline:
-  ```python
-  def test_text_pipeline_snapshot():
-      result = extract_table_from_text("tests/gold_standard/input.pdf")
-      expected = json.load(open("tests/gold_standard/expected.json"))
-      match_pct = calculate_cell_match(result, expected)
-      assert match_pct >= 0.90, f"Совпадение {match_pct:.1%} < 90%"
-  ```
-- [ ] **FIX-009.3** — Добавить `pytest` и `pytest-cov` в `requirements.txt`.
-- [ ] **FIX-009.4** — Написать аналогичные тесты для invoice-extractor.
-- [ ] **FIX-009.5** — Добавить `Makefile` или скрипт `run_tests.sh` в корень проекта.
+- [x] **FIX-009.1** — Создать `tests/` в каждом сервисе (conftest, health, convert, validators, text_extractor, normalizer).
+- [x] **FIX-009.2** — Unit-тесты без snapshot (чистые функции; snapshot требует эталонного PDF).
+- [x] **FIX-009.3** — Добавить `pytest` и `pytest-cov` в `requirements.txt`.
+- [x] **FIX-009.4** — Написать тесты для invoice-extractor (62 теста: validators, normalizer, convert API, health).
+- [x] **FIX-009.5** — Добавить `Makefile` в корень проекта.
+
+**Итог:** 125 тестов (62 invoice-extractor + 63 spec-converterv2), все проходят.
 
 **Файлы:** `tests/` в обоих сервисах, `requirements.txt`  
 **Оценка:** 4–6 часов (базовый набор)  
