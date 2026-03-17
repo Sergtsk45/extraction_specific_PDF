@@ -2,6 +2,11 @@
 .env
 **/backend/.env
 **/backend/config.py
+config*.py
+config*.example
+config*.py.example
+*.backup
+*.bak
 
 # ── Python ────────────────────────────────────────────────────────────
 __pycache__/
