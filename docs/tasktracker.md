@@ -1,6 +1,6 @@
 # Task Tracker — Extraction Specific PDF
 
-> **Обновлено:** 2026-02-18 (архитектурные решения приняты)  
+> **Обновлено:** 2026-03-17
 > **Приоритеты:** Критический / Высокий / Средний / Низкий
 
 ---
@@ -70,28 +70,26 @@
   - [x] Переход с `config.py` на `.env` + `python-dotenv` для API-ключей
   - [x] Обработка ошибок: badges 👁 (vision via `X-Vision-Fallback`), красная подсветка (ошибка через базовый `ServiceCard`)
   - [x] Кнопка «Только Vision» в Advanced mode (параметр `vision_only` поддержан в `app.py`)
-  - [x] Тестирование конвертации через оболочку (Quick + Advanced mode) — ручное тестирование (загрузка PDF, скачивание xlsx, проверка заголовков `X-Vision-Fallback` / `X-Sheet-Names`)
+  - [x] Тестирование конвертации через оболочку (Quick + Advanced mode) — ручное тестирование
 - **Файлы**: `services/spec-converterv2/backend/{app.py,spec_utils.py,pdf_text_extractor.py,requirements.txt,.env.example}`, `services/spec-converterv2/frontend/index.html`, `services/spec-converterv2/component.js`
 - **Зависимости**: Shell App, Service Registry
 
 ---
 
 ### Задача: Настройка Nginx (API Gateway, path-based)
-- **Статус**: Не начата
+- **Статус**: Завершена
 - **Приоритет**: Высокий
-- **Описание**: Конфигурация Nginx как reverse proxy. Path-based routing: `localhost/` → Shell, `localhost/api/spec-converter/` → Flask :5001.
+- **Описание**: Конфигурация Nginx как reverse proxy. Path-based routing: `localhost/` → Shell, `/api/spec-converter/` → Flask :5001, `/api/invoice-extractor/` → Flask :5002. Выполнено в рамках FIX-008.
 - **Шаги выполнения**:
-  - [ ] Создание `gateway/nginx.conf`
-  - [ ] Настройка маршрутов: `location /` → Shell, `location /api/spec-converter/` → `:5001`
-  - [ ] Настройка CORS на уровне Gateway (убрать flask-cors из сервисов)
-  - [ ] Настройка rate limiting (`limit_req`)
-  - [ ] Настройка ограничения размера загружаемых файлов (`client_max_body_size`)
-  - [ ] Настройка таймаутов для длительных операций (Vision: до 180s)
-  - [ ] Прослойка для Basic Auth (заготовка, отключена по умолчанию)
-  - [ ] Тестирование маршрутизации
-- **Зависимости**: Shell App, spec-converterv2
-
----
+  - [x] Создание `gateway/nginx.conf`
+  - [x] Настройка маршрутов: `location /` → Shell, `location /api/spec-converter/` → `:5001`, `location /api/invoice-extractor/` → `:5002`
+  - [x] Убраны CORS-заголовки из Flask-сервисов (flask-cors удалён), CORS управляется на уровне Gateway
+  - [x] Настройка rate limiting (`limit_req_zone`, 10r/s burst=20)
+  - [x] Настройка ограничения размера файлов (`client_max_body_size 50M`)
+  - [x] Настройка таймаутов для длительных операций (`proxy_read_timeout 180s`)
+  - [x] Production systemd-юниты в `gateway/systemd/`
+- **Файлы**: `gateway/nginx.conf`, `gateway/systemd/*.service`
+- **Зависимости**: Shell App, spec-converterv2, invoice-extractor
 
 ---
 
@@ -109,11 +107,7 @@
   - [x] `systemctl --user enable` все три сервиса
   - [x] `loginctl enable-linger serg45` — запуск user-units при загрузке системы без логина
   - [x] Проверка health-эндпоинтов после запуска
-- **Файлы**:
-  - `services/invoice-extractor/backend/.env`
-  - `services/invoice-extractor/backend/wsgi.py`
-  - `services/invoice-extractor/backend/gunicorn.conf.py`
-  - `~/.config/systemd/user/{invoice-extractor,spec-converterv2,docplatform-dev}.service`
+- **Файлы**: `services/invoice-extractor/backend/{.env,wsgi.py,gunicorn.conf.py}`, `~/.config/systemd/user/*.service`
 - **Зависимости**: invoice-extractor, spec-converterv2, dev_server
 
 ---
@@ -135,35 +129,177 @@
   - [x] INV-010: Интеграция прокси-маршрутов в dev_server.py
 - **Зависимости**: Shell App, Service Registry
 
+---
+
+## Фаза 1.5 — Исправления по Code Review (2026-03-17)
+
+> Все 13 задач выявлены в ходе code review. Статусы актуальны на 2026-03-17.
+
+### FIX-001: Утечка секретов и мёртвый код ✅
+- **Статус**: Завершена
+- **Приоритет**: Критический
+- **Описание**: Удаление backup-файлов с импортами `config.py`; проверка Git-истории на наличие секретов.
+- **Шаги выполнения**:
+  - [x] Проверить Git-историю — реальных ключей не найдено, ротация не требуется
+  - [x] Удалены мёртвые файлы: `app_anthropic_only.py.backup`, `app_openrouter.py`, все `config*.example`
+  - [x] `.gitignore` уже содержал `*.backup`, `*.bak`, `config*.py`, `config*.example`
+  - [x] `.env` файлы обоих сервисов в `.gitignore` (`**/backend/.env`)
+
+---
+
+### FIX-002: CORS без ограничений в spec-converterv2 ✅
+- **Статус**: Завершена (частично — FIX-002.3 требует ручной правки на сервере)
+- **Приоритет**: Критический
+- **Описание**: `CORS(app)` без origins → `CORS(app, origins=ALLOWED_ORIGINS)`. После FIX-008 (Nginx gateway) flask-cors полностью удалён из обоих сервисов — CORS управляется на уровне proxy.
+- **Шаги выполнения**:
+  - [x] Добавлен `ALLOWED_ORIGINS` в `.env.example` spec-converterv2
+  - [x] `app.py` обновлён — ограниченный CORS
+  - [x] flask-cors удалён из обоих сервисов (FIX-008) — CORS через gateway
+  - [ ] **FIX-002.3** — Обновить `.env` на production-сервере с актуальными origins *(ручная задача)*
+
+---
+
+### FIX-003: Нет валидации содержимого файлов ✅
+- **Статус**: Завершена
+- **Приоритет**: Критический
+- **Описание**: Оба сервиса проверяли только расширение. Добавлена проверка magic bytes (`%PDF-`) и ограничение размера.
+- **Шаги выполнения**:
+  - [x] `python-magic` добавлен в `requirements.txt` обоих сервисов
+  - [x] Утилиты `_validate_pdf()` созданы в обоих `app.py`
+  - [x] `MAX_CONTENT_LENGTH = 50 MB` добавлен в spec-converterv2
+
+---
+
+### FIX-004: Race condition и потеря кириллицы при сохранении файлов ✅
+- **Статус**: Завершена
+- **Приоритет**: Высокий
+- **Описание**: `secure_filename("Спецификация.pdf")` → `"_2.pdf"`. Заменено на UUID-префикс + safe имя.
+- **Шаги выполнения**:
+  - [x] `_safe_filename()` создана в spec-converterv2: `{uuid[:12]}_{safe_base}.pdf`
+  - [x] invoice-extractor уже использовал UUID — проверено, оставлено без изменений
+  - [x] Оригинальное имя сохраняется в `download_name` ответа
+
+---
+
+### FIX-005: Отсутствие таймаутов на внешние API-вызовы ✅
+- **Статус**: Завершена
+- **Приоритет**: Высокий
+- **Описание**: Vision-вызовы без явного HTTP-таймаута → воркер Gunicorn блокируется при зависании API провайдера.
+- **Шаги выполнения**:
+  - [x] `REQUEST_TIMEOUT_SEC=120` добавлен в `.env.example` обоих сервисов
+  - [x] spec-converterv2: таймауты добавлены в Anthropic/OpenAI/OpenRouter клиенты
+  - [x] invoice-extractor: уже использовал `TIMEOUT = int(os.getenv("REQUEST_TIMEOUT_SEC", 120))`
+
+---
+
+### FIX-006: `print()` вместо `logging` в spec-converterv2 ✅
+- **Статус**: Завершена
+- **Приоритет**: Высокий
+- **Описание**: 28 `print()` заменены на `logger.info/warning/error/exception`.
+- **Шаги выполнения**:
+  - [x] Настройка `logging.basicConfig` + `logger = logging.getLogger(__name__)`
+  - [x] Все `print()` в `app.py` и `pdf_text_extractor.py` заменены на logging
+  - [x] `PYTHONUNBUFFERED=1` добавлен в `.env.example`
+
+---
+
+### FIX-007: Дублирование LLM-клиента между сервисами ✅
+- **Статус**: Завершена
+- **Приоритет**: Высокий
+- **Описание**: Инфраструктурный код Anthropic/OpenAI/OpenRouter вынесен в общий пакет `shared/llm_client/`.
+- **Шаги выполнения**:
+  - [x] Создан `shared/llm_client/` как installable package (`pyproject.toml`, `pip install -e`)
+  - [x] `call_vision_llm(images, prompt, provider, ...)` — единая точка входа для всех провайдеров
+  - [x] `pdf_to_images()`, `parse_json_response()` вынесены в `shared/llm_client/vision.py`
+  - [x] invoice-extractor: `app/llm_client.py` — тонкая обёртка над shared
+  - [x] spec-converterv2: убраны ~105 строк дублирующего кода
+  - [x] `requirements.txt` обоих сервисов: `-e ../../../shared/llm_client`
+- **Файлы**: `shared/llm_client/`, `services/*/backend/requirements.txt`
+
+---
+
+### FIX-008: Nginx Gateway ✅
+- **Статус**: Завершена
+- **Приоритет**: Высокий
+- **Описание**: Production-готовый Nginx gateway с rate limiting, gzip, 50MB лимит, 180s таймаут для LLM. spec-converterv2 переведён на gunicorn. flask-cors удалён из обоих сервисов.
+- **Шаги выполнения**:
+  - [x] `gateway/nginx.conf`: rate limiting 10r/s burst=20, gzip, upstreams :5001/:5002
+  - [x] flask-cors удалён из обоих сервисов (CORS через gateway)
+  - [x] `services/spec-converterv2/backend/wsgi.py` и `gunicorn.conf.py` созданы
+  - [x] Production systemd-юниты: `gateway/systemd/{nginx,spec-converterv2,invoice-extractor}.service`
+  - [x] `~/.config/systemd/user/spec-converterv2.service` обновлён на gunicorn
+  - [x] `dev_server.py`: добавлено предупреждение [DEV] о production-использовании Nginx
+- **Файлы**: `gateway/nginx.conf`, `gateway/systemd/`, `services/spec-converterv2/backend/{wsgi.py,gunicorn.conf.py}`
+
+---
+
+### FIX-009: Отсутствие автоматических тестов ✅
+- **Статус**: Завершена
+- **Приоритет**: Высокий
+- **Итог**: **126 тестов** (62 invoice-extractor + 64 spec-converterv2), все проходят.
+- **Шаги выполнения**:
+  - [x] `services/spec-converterv2/backend/tests/`: conftest, test_health, test_convert_api, test_validation, test_text_extractor
+  - [x] `services/invoice-extractor/backend/tests/`: conftest, test_health, test_convert_api, test_validators, test_normalizer
+  - [x] Исправлен баг в `validators.py`: `qty×price` сравнивалось с `amount_w_vat` вместо `amount_wo_vat`
+  - [x] `pytest>=8.0.0`, `pytest-cov>=5.0.0` добавлены в `requirements.txt` обоих сервисов
+  - [x] `Makefile` в корне: `make test`, `make test-spec`, `make test-invoice`, `make lint`, `make format`
+- **Файлы**: `services/*/backend/tests/`, `Makefile`
+
+---
+
+### FIX-010: Нет CI/CD ✅
+- **Статус**: Завершена (деплой-шаг не реализован — опционально)
+- **Приоритет**: Средний
+- **Шаги выполнения**:
+  - [x] `.github/workflows/ci.yml`: jobs `test` (Python 3.11, libmagic1, shared llm_client, раздельные прогоны) + `lint` (ruff)
+  - [x] `ruff.toml`: `line-length=120`, `target-version="py311"`
+  - [ ] Деплой через SSH или Docker push *(опционально)*
+- **Файлы**: `.github/workflows/ci.yml`, `ruff.toml`
+
+---
+
+### FIX-011: Жёстко зашитые порты ✅
+- **Статус**: Завершена
+- **Приоритет**: Низкий
+- **Шаги выполнения**:
+  - [x] `.env.example` в корне: `SHELL_PORT`, `SPEC_CONVERTER_PORT`, `INVOICE_EXTRACTOR_PORT`
+  - [x] `dev_server.py`: читает порты из `.env` через `python-dotenv` (fallback на defaults 8080/5001/5002)
+  - [x] `shell/js/config.js` уже использует относительные пути — изменений не потребовалось
+
+---
+
+### FIX-012: Health endpoint — утечка информации ✅
+- **Статус**: Завершена
+- **Приоритет**: Низкий
+- **Шаги выполнения**:
+  - [x] `GET /health` → только `{status, service, version}`
+  - [x] `GET /health/details` → полная инфо, но доступен только с `127.0.0.1`/`::1` (иначе 403)
+- **Файлы**: `services/spec-converterv2/backend/app.py`
+
+---
+
+### FIX-013: Консолидация документации spec-converterv2 ✅
+- **Статус**: Завершена
+- **Приоритет**: Низкий
+- **Описание**: Все хаотичные файлы (`README.md`, `QUICKSTART.md`, `OPENROUTER_GUIDE.md`, `WSL_DNS_FIX.md`, `ИСПРАВЛЕНИЕ.md`, `TEXT_FIRST_PIPELINE.md`, `switch_provider.sh`, `start.sh`) были удалены в FIX-001. Сервис содержит только `backend/`, `frontend/`, `manifest.json`.
+
+---
 
 ## Фаза 2 — Контейнеризация и DevOps
 
 ### Задача: Контейнеризация сервисов (Docker Compose)
 - **Статус**: Не начата
 - **Приоритет**: Высокий
-- **Описание**: Docker Compose для всего стека. Запуск одной командой `docker-compose up`. Gunicorn как WSGI-сервер для Flask.
+- **Описание**: Docker Compose для всего стека. Запуск одной командой `docker-compose up`.
 - **Шаги выполнения**:
   - [ ] Dockerfile для services/spec-converterv2 (Python + Gunicorn, 2-4 workers)
+  - [ ] Dockerfile для services/invoice-extractor
   - [ ] Dockerfile для Nginx (Shell App + Gateway в одном контейнере)
   - [ ] `docker-compose.yml` для всего стека
-  - [ ] `.env.example` с шаблоном переменных (без секретов)
   - [ ] Health checks в docker-compose
   - [ ] Cron-задача: удаление временных файлов старше 1 часа
   - [ ] Тестирование полного стека через Docker
 - **Зависимости**: Все задачи Фазы 1
-
----
-
-### Задача: CI/CD пайплайн
-- **Статус**: Не начата
-- **Приоритет**: Средний
-- **Описание**: Настройка автоматической сборки, тестирования и деплоя.
-- **Шаги выполнения**:
-  - [ ] GitHub Actions: линтинг (Python, JS)
-  - [ ] GitHub Actions: запуск тестов
-  - [ ] GitHub Actions: сборка Docker-образов
-  - [ ] Автоматический деплой (staging)
-- **Зависимости**: Контейнеризация
 
 ---
 
@@ -216,14 +352,15 @@
 ## Фаза 4 — Продакшн
 
 ### Задача: Безопасность
-- **Статус**: Не начата
+- **Статус**: В процессе (базовый уровень достигнут в Фазе 1.5)
 - **Приоритет**: Высокий
 - **Описание**: Аудит и усиление безопасности платформы.
 - **Шаги выполнения**:
-  - [ ] Валидация MIME-типа и magic bytes загружаемых файлов
+  - [x] Валидация MIME-типа и magic bytes загружаемых файлов (FIX-003)
+  - [x] Защита от path traversal (`validate_folder_path` в invoice-extractor)
+  - [x] Переход на `.env` + `python-dotenv` (выполнено)
+  - [x] CORS ограничен через gateway (FIX-002, FIX-008)
   - [ ] Content-Security-Policy заголовки
-  - [ ] Защита от path traversal
-  - [ ] Переход на `.env` (выполняется в рамках интеграции spec-converterv2)
   - [ ] Basic Auth через Nginx (заготовка, включается по потребности)
   - [ ] Аудит зависимостей (`pip audit`)
 - **Зависимости**: Все фазы
@@ -246,17 +383,22 @@
 
 ## Тестирование
 
-### Задача: Snapshot Testing для pdf_text_extractor
+### Задача: Базовые unit/integration тесты
+- **Статус**: Завершена (FIX-009)
+- **Итог**: 126 тестов (62 invoice-extractor + 64 spec-converterv2). Запуск: `make test`.
+
+---
+
+### Задача: Snapshot Testing для text-first pipeline
 - **Статус**: Не начата
-- **Приоритет**: Высокий
-- **Описание**: Создание инфраструктуры snapshot-тестирования на промежуточном JSON (не Excel).
+- **Приоритет**: Средний
+- **Описание**: Эталонный PDF + ожидаемый JSON. Порог прохождения: ≥ 90% совпадений ячеек.
 - **Шаги выполнения**:
   - [ ] Создание папки `gold_standard/` с парами `input.pdf` / `expected.json`
   - [ ] Написание скрипта сравнения JSON-выхода с эталоном
   - [ ] Порог прохождения: > 95% совпадений
-  - [ ] Unit-тесты: `fix_encoding()`, `find_column_mapping()`, `normalize_table_to_9cols()`
   - [ ] Интеграция тестов в CI/CD
-- **Зависимости**: Нет
+- **Зависимости**: FIX-009 (инфраструктура тестов — готова)
 
 ---
 
