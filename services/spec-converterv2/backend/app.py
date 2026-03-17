@@ -10,6 +10,7 @@
 
 import os
 import re
+import uuid
 import base64
 import json
 import time
@@ -57,7 +58,9 @@ else:
 # ──────────────────────────────────────────────────────────────────────────────
 
 app = Flask(__name__)
-CORS(app)
+app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50 MB
+ALLOWED_ORIGINS = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", "http://localhost:8080").split(",")]
+CORS(app, origins=ALLOWED_ORIGINS)
 
 _BASE_DIR     = os.path.dirname(__file__)
 UPLOAD_FOLDER = os.path.join(_BASE_DIR, '..', 'uploads')
@@ -444,6 +447,36 @@ def _allowed_file(filename: str) -> bool:
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
+def _safe_filename(original: str) -> str:
+    """UUID-префикс + безопасное имя. Сохраняет расширение, устойчив к кириллице."""
+    ext = original.rsplit(".", 1)[-1].lower() if "." in original else ""
+    safe = secure_filename(original)
+    base = safe.rsplit(".", 1)[0] if safe and safe != f".{ext}" else "file"
+    return f"{uuid.uuid4().hex[:12]}_{base}.{ext}"
+
+
+def _validate_pdf(file_storage) -> tuple[bool, str | None]:
+    """Проверяет, что загруженный файл действительно PDF.
+
+    Проверяет расширение и magic bytes (%PDF-).
+    """
+    filename = file_storage.filename or ""
+    if not filename.lower().endswith(".pdf"):
+        return False, "Только PDF файлы"
+    header = file_storage.read(8)
+    file_storage.seek(0)
+    if not header.startswith(b"%PDF-"):
+        return False, "Файл не является настоящим PDF"
+    try:
+        import magic
+        mime = magic.from_buffer(header, mime=True)
+        if mime != "application/pdf":
+            return False, f"Неверный MIME-тип: {mime}"
+    except ImportError:
+        pass
+    return True, None
+
+
 @app.route('/convert', methods=['POST'])
 def convert_pdf():
     """POST /convert — конвертация PDF → Excel.
@@ -460,20 +493,25 @@ def convert_pdf():
     if not f.filename or not _allowed_file(f.filename):
         return jsonify({'error': 'Только PDF', 'code': 'INVALID_TYPE'}), 400
 
+    valid, err = _validate_pdf(f)
+    if not valid:
+        return jsonify({'error': err, 'code': 'INVALID_FILE'}), 400
+
     vision_only   = request.form.get('vision_only', '').lower() == 'true'
     req_provider  = request.form.get('provider') or None
     req_api_key   = _get_api_key(req_provider) if req_provider else None
     req_model     = MODEL_NAME  # модель берётся из .env; провайдер может быть переопределён
 
     pdf_path = None
+    original_name = f.filename or "file.pdf"
     try:
-        filename = secure_filename(f.filename)
+        filename = _safe_filename(original_name)
         pdf_path = os.path.join(UPLOAD_FOLDER, filename)
         f.save(pdf_path)
 
         eff_provider = req_provider or API_PROVIDER
         eff_key      = req_api_key  or API_KEY
-        print(f'\n📄 {filename}')
+        print(f'\n📄 {original_name}')
         if eff_provider and eff_key:
             print(f'   Vision: {eff_provider}/{req_model}{"  [force]" if vision_only else ""}')
         else:
@@ -492,6 +530,7 @@ def convert_pdf():
         print('  📊 Создание Excel...')
         output_filename = filename.rsplit('.', 1)[0] + '.xlsx'
         output_path     = os.path.join(OUTPUT_FOLDER, output_filename)
+        download_name   = original_name.rsplit('.', 1)[0] + '.xlsx'
 
         sheet_names = _create_excel(pages_data, output_path)
 
@@ -504,7 +543,7 @@ def convert_pdf():
             output_path,
             mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             as_attachment=True,
-            download_name=output_filename,
+            download_name=download_name,
         ))
         response.headers['X-Vision-Fallback'] = 'true' if vision_was_used else 'false'
         # HTTP-заголовки должны быть ASCII/latin-1; кодируем кириллицу через URL-encoding

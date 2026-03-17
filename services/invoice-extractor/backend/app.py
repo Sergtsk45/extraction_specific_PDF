@@ -89,6 +89,30 @@ ALLOWED_ORIGINS = [origin.strip() for origin in ALLOWED_ORIGINS]
 CORS(app, origins=ALLOWED_ORIGINS)
 
 
+# ── Утилиты ────────────────────────────────────────────────────
+
+def _validate_pdf(file_storage) -> tuple[bool, str | None]:
+    """Проверяет, что загруженный файл действительно PDF.
+
+    Проверяет расширение и magic bytes (%PDF-).
+    """
+    filename = file_storage.filename or ""
+    if not filename.lower().endswith(".pdf"):
+        return False, "Только PDF файлы"
+    header = file_storage.read(8)
+    file_storage.seek(0)
+    if not header.startswith(b"%PDF-"):
+        return False, "Файл не является настоящим PDF"
+    try:
+        import magic
+        mime = magic.from_buffer(header, mime=True)
+        if mime != "application/pdf":
+            return False, f"Неверный MIME-тип: {mime}"
+    except ImportError:
+        pass
+    return True, None
+
+
 # ── Routes ─────────────────────────────────────────────────────
 
 @app.get("/health")
@@ -120,6 +144,11 @@ def convert():
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         logger.warning(f"Invalid file type: {file.filename}")
         return jsonify({"error": "Принимаются только PDF-файлы"}), 400
+
+    valid, err = _validate_pdf(file)
+    if not valid:
+        logger.warning(f"Invalid PDF content: {err}, file: {file.filename}")
+        return jsonify({"error": err}), 400
 
     vision_only = request.form.get("vision_only", "false").lower() == "true"
     provider = request.form.get("provider", os.getenv("LLM_PROVIDER", "anthropic"))
