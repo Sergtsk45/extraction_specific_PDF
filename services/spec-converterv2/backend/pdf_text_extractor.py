@@ -178,8 +178,14 @@ def extract_table_from_text(page) -> tuple:
     col_map = find_column_mapping(largest_table)
 
     if not col_map:
-        # Fallback: если нумерацию не нашли, пытаемся по заголовкам
-        return _extract_fallback(largest_table), None
+        # Fix 3: Fallback 1 — маппинг по строке-заголовку таблицы
+        header_map = _find_header_mapping(largest_table)
+        if header_map:
+            col_map = {raw_idx: logical_num for logical_num, raw_idx in header_map.items()}
+            # Продолжаем основной алгоритм с этим маппингом
+        else:
+            # Fallback 2: старый fallback (крайний случай)
+            return _extract_fallback(largest_table), None
 
     # Строим маппинг: logical_col (1-9) → raw_col_index
     logical_to_raw = {}
@@ -205,6 +211,11 @@ def extract_table_from_text(page) -> tuple:
                 val = str(cell).strip() if cell is not None else ""
                 # Убираем переносы строк внутри ячейки (склеиваем)
                 val = " ".join(val.split('\n')).strip()
+                # Fix 1: склейка разрывов подстрочных индексов (DУ, РУ, DН, РН)
+                val = re.sub(r'\bD\s+У\b', 'DУ', val)
+                val = re.sub(r'\bР\s+У\b', 'РУ', val)
+                val = re.sub(r'\bD\s+Н\b', 'DН', val)
+                val = re.sub(r'\bР\s+Н\b', 'РН', val)
                 mapped_row.append(val)
             else:
                 mapped_row.append("")
@@ -246,6 +257,9 @@ def extract_table_from_text(page) -> tuple:
 
         filtered_rows.append(mapped_row)
 
+    # Fix 4: склейка строк-продолжений
+    filtered_rows = _merge_continuation_rows(filtered_rows)
+
     return filtered_rows, pdf_header
 
 
@@ -258,6 +272,15 @@ def _fix_merged_cells(row: List[str]) -> List[str]:
 
     Также: col4="шт 4" → col6="шт", col7="4"
     """
+    # Fix 2: извлечение позиции из наименования ("54. Биметаллический..." → col[0]="54.")
+    if not row[0].strip() and row[1].strip():
+        match = re.match(r'^(\d+(?:\.\d+)?\.?)\s+(.+)$', row[1].strip(), re.DOTALL)
+        if match:
+            candidate_pos = match.group(1)
+            if re.match(r'^\d{1,3}(?:\.\d{1,2})?\.?$', candidate_pos):
+                row[0] = candidate_pos
+                row[1] = match.group(2).strip()
+
     # Проверка: позиция (col1) содержит пробел и длинный текст → слипание
     pos = row[0]
     if pos and ' ' in pos and len(pos) > 5:
@@ -394,6 +417,101 @@ def _is_vertical_text(row: List[str]) -> bool:
             if len(parts) >= 4 and all(len(p.strip()) <= 3 for p in parts):
                 return True
     return False
+
+
+def _find_header_mapping(table: List[List]) -> Optional[Dict[int, int]]:
+    """
+    Fallback-маппинг: ищет строку-заголовок таблицы по ключевым словам
+    и строит маппинг logical_col (1-9) → raw_col_idx.
+
+    Используется когда строка-нумератор (1 2 3 ... 9) не найдена.
+    Если нашли >= 5 логических колонок — считаем маппинг достаточным.
+    """
+    HEADER_PATTERNS = {
+        1: ["позиция", "поз."],
+        2: ["наименование"],
+        3: ["тип", "марка", "обозначение"],
+        4: ["код"],
+        5: ["завод", "изготовитель", "поставщик"],
+        6: ["единиц", "ед.", "измер"],
+        7: ["количеств", "кол-во", "кол."],
+        8: ["масса"],
+        9: ["примечан"],
+    }
+
+    for row in table[:5]:
+        if row is None:
+            continue
+
+        row_texts = []
+        for cell in row:
+            val = str(cell).strip().lower() if cell else ""
+            if needs_encoding_fix(val):
+                val = fix_encoding(val).lower()
+            row_texts.append(val)
+
+        matches: Dict[int, int] = {}
+        for col_idx, text in enumerate(row_texts):
+            if not text:
+                continue
+            for logical_num, keywords in HEADER_PATTERNS.items():
+                if logical_num in matches:
+                    continue
+                if any(kw in text for kw in keywords):
+                    matches[logical_num] = col_idx
+                    break
+
+        if len(matches) >= 5:
+            return matches
+
+    return None
+
+
+def _merge_continuation_rows(rows: List[List[str]]) -> List[List[str]]:
+    """
+    Склеивает строки-продолжения с предыдущей строкой.
+
+    Строка считается продолжением если:
+    - Позиция (col[0]) пуста
+    - Только 1-2 колонки заполнены
+    - Нет числовых данных в полях ед.изм/кол-во/масса (col 5-7)
+    - Текст не начинается с "-" (не подпозиция)
+    """
+    if len(rows) < 2:
+        return rows
+
+    merged = [rows[0]]
+
+    for row in rows[1:]:
+        pos = row[0].strip()
+        filled_cols = [(i, c) for i, c in enumerate(row) if c.strip()]
+
+        has_position = bool(re.match(r'^\d+\.?', pos))
+        starts_with_dash = row[1].strip().startswith('-') if len(row) > 1 and row[1].strip() else False
+        has_numeric_data = any(row[i].strip() for i in [5, 6, 7] if i < len(row))
+
+        is_continuation = (
+            not pos
+            and not has_position
+            and not starts_with_dash
+            and not has_numeric_data
+            and len(filled_cols) <= 2
+            and len(merged) > 0
+        )
+
+        if is_continuation:
+            prev = merged[-1]
+            for i, cell in enumerate(row):
+                if cell.strip():
+                    if i < len(prev):
+                        if prev[i].strip():
+                            prev[i] = prev[i].rstrip() + " " + cell.strip()
+                        else:
+                            prev[i] = cell.strip()
+        else:
+            merged.append(row)
+
+    return merged
 
 
 def _extract_fallback(table: List[List]) -> List[List[str]]:
