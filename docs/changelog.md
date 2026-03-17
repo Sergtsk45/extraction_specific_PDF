@@ -5,6 +5,35 @@
 
 ---
 
+## [2026-03-17] — Code Review: исправления FIX-001..013
+
+### Безопасность
+- **FIX-001** — Удалены мёртвые файлы с импортами `config.py`: `app_anthropic_only.py.backup`, `app_openrouter.py`, все `config*.example` в spec-converterv2. Git-история проверена — реальных ключей не найдено, ротация не потребовалась.
+- **FIX-002** — CORS в spec-converterv2 ограничен через `ALLOWED_ORIGINS` из `.env`. После введения Nginx gateway flask-cors полностью удалён из обоих сервисов — CORS управляется на уровне proxy.
+- **FIX-003** — Добавлена проверка magic bytes (`%PDF-`) в обоих сервисах. `python-magic` добавлен в `requirements.txt`. В spec-converterv2 установлен `MAX_CONTENT_LENGTH = 50 MB`.
+- **FIX-012** — `GET /health` в spec-converterv2 возвращает только `{status, service, version}`. Детальная инфо (`provider`, `model`, `configured`) вынесена в `GET /health/details`, доступный только с localhost (иначе 403).
+
+### Исправлено
+- **FIX-004** — `secure_filename()` с кириллицей возвращал `"_2.pdf"`. Заменено на `_safe_filename()`: `{uuid[:12]}_{safe_base}.{ext}`. Устранён race condition при параллельных запросах.
+- **FIX-005** — Добавлены явные HTTP-таймауты (`REQUEST_TIMEOUT_SEC=120`) во все LLM-клиенты spec-converterv2. invoice-extractor уже использовал таймаут.
+- **FIX-006** — 28 вызовов `print()` в spec-converterv2 заменены на `logging` (INFO/WARNING/ERROR/exception). Добавлен `PYTHONUNBUFFERED=1` в `.env.example`.
+- **FIX-009 (баг)** — Исправлена ошибка в `validators.py` invoice-extractor: `qty × price` сравнивалось с `amount_w_vat` (с НДС) вместо `amount_wo_vat` (без НДС). Российские счета используют цену без НДС.
+
+### Добавлено
+- **FIX-007** — Создан общий пакет `shared/llm_client/` (`pip install -e`). Вынесены: `call_vision_llm()`, `pdf_to_images()`, `parse_json_response()`, `get_api_key()`. Устранено ~105 строк дублирующего кода из spec-converterv2. invoice-extractor переведён на тонкую обёртку.
+- **FIX-008** — `gateway/nginx.conf`: rate limiting 10r/s burst=20, gzip, `client_max_body_size 50M`, `proxy_read_timeout 180s`, upstreams :5001/:5002. Production systemd-юниты в `gateway/systemd/`. spec-converterv2 переведён на gunicorn (`wsgi.py`, `gunicorn.conf.py`).
+- **FIX-009** — Создана тестовая инфраструктура: **126 тестов** (62 invoice-extractor + 64 spec-converterv2). Покрытие: health, convert API, validators, normalizer, text_extractor, validation utils. `Makefile` в корне: `make test`, `make lint`, `make format`.
+- **FIX-010** — `.github/workflows/ci.yml`: jobs `test` (Python 3.11, libmagic1, shared llm_client) и `lint` (ruff). `ruff.toml`: `line-length=120`, `target-version="py311"`.
+- **FIX-011** — `.env.example` в корне проекта с `SHELL_PORT`, `SPEC_CONVERTER_PORT`, `INVOICE_EXTRACTOR_PORT`. `dev_server.py` читает порты из `.env` через `python-dotenv` (fallback на 8080/5001/5002).
+- **FIX-013** — Документация spec-converterv2 уже была очищена в FIX-001. Сервис содержит только `backend/`, `frontend/`, `manifest.json`.
+
+### Документация
+- `docs/tasktracker.md` — добавлена секция «Фаза 1.5 — Исправления по Code Review», обновлены статусы задач Nginx, CI/CD, Безопасность, Тестирование.
+- `docs/fix-plan.md` — все 13 задач отмечены выполненными (кроме FIX-002.3 и FIX-010.3 — опциональные/ручные).
+- `CLAUDE.md` — добавлен в корень проекта (инструкции для Claude Code).
+
+---
+
 ## [2026-03-01] — Настроен автозапуск сервисов через systemd
 
 ### Добавлено
