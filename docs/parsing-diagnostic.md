@@ -40,12 +40,15 @@ def _extract_fallback(table):
 
 ## 4. План исправлений
 
+> **Обновление (2026-03-18):** пункты 4.1–4.4 ниже **уже реализованы в коде** (`services/spec-converterv2/backend/pdf_text_extractor.py`). Этот документ теперь служит как постмортем (почему ломалось) + чеклист регрессии/проверки на образцах.
+
 ### 4.1. Улучшить `_extract_fallback()` — маппинг по заголовку (ГЛАВНЫЙ FIX)
 
 Когда нумератор не найден, искать строку-заголовок ("Позиция", "Наименование", "Тип, марка"...) и строить маппинг по ней.
 
-**Файл:** `pdf_text_extractor.py`
-**Функция:** новая `_find_header_mapping()` + изменение `_extract_fallback()`
+**Статус:** ✅ реализовано  
+**Файл:** `services/spec-converterv2/backend/pdf_text_extractor.py`  
+**Функции:** `_find_header_mapping()` + логика в `extract_table_from_text()` (fallback 1 — маппинг по заголовку; fallback 2 — старый `_extract_fallback()`).
 
 ```python
 def _find_header_mapping(table: List[List]) -> Optional[Dict[int, int]]:
@@ -107,21 +110,16 @@ def _find_header_mapping(table: List[List]) -> Optional[Dict[int, int]]:
     return None
 ```
 
-**Изменение в `extract_table_from_text()`:**
+**Факт в коде (логика):**
 
 ```python
     col_map = find_column_mapping(largest_table)
 
     if not col_map:
-        # Fallback 1: маппинг по заголовку
         header_map = _find_header_mapping(largest_table)
         if header_map:
-            col_map = {raw_idx: logical_num 
-                       for logical_num, raw_idx in header_map.items()}
-            # Продолжаем ОСНОВНОЙ алгоритм с этим маппингом
-            # (не уходим в _extract_fallback)
+            col_map = {raw_idx: logical_num for logical_num, raw_idx in header_map.items()}
         else:
-            # Fallback 2: старый fallback (крайний случай)
             return _extract_fallback(largest_table), None
 ```
 
@@ -150,6 +148,7 @@ val = re.sub(r'\bР\s+Н\b', 'РН', val)
 val = re.sub(r'Ш\s*=\s*', 'Ø = ', val)  # "Ш = 28" → "Ø = 28"
 ```
 
+**Статус:** ✅ реализовано (в маппинге ячейки перед фильтрами)  
 **Риск:** Нулевой. Паттерн `D У` (латинская D + пробел + кириллическая У) не встречается в нормальном тексте.
 
 ---
@@ -223,6 +222,7 @@ def _merge_continuation_rows(rows: List[List[str]]) -> List[List[str]]:
     return filtered_rows, pdf_header
 ```
 
+**Статус:** ✅ реализовано (`_merge_continuation_rows()` вызывается в конце `extract_table_from_text()`)  
 **Риск:** Средний. Нужно проверить на правильно парсящихся PDF. Критерий `is_continuation` достаточно строгий: строка должна быть без позиции, без «-», без числовых данных в правых колонках, и содержать ≤ 2 заполненных ячейки.
 
 ---
@@ -250,6 +250,7 @@ def _fix_merged_cells(row: List[str]) -> List[str]:
     # ... остальной код _fix_merged_cells без изменений ...
 ```
 
+**Статус:** ✅ реализовано (в начале `_fix_merged_cells()`)  
 **Риск:** Низкий. Работает только когда col[0] пуста. Паттерн `^\d{1,3}(\.\d{1,2})?\.?` матчит только типичные позиции спецификаций.
 
 ---
@@ -277,3 +278,11 @@ def _fix_merged_cells(row: List[str]) -> List[str]:
 - Ед.изм, Кол-во, Масса не пусты там, где в PDF они есть
 - Нет разрыва `D\nУ` — всё в одной ячейке как `DУ=15`
 - Многострочные ячейки склеены (нет осиротевших строк «МПа», «нерж.»)
+
+### 7. Где смотреть в коде
+
+- **Основной пайплайн text-first**: `extract_table_from_text()`  
+- **Маппинг по нумератору**: `find_column_mapping()`  
+- **Fallback по заголовку**: `_find_header_mapping()`  
+- **Склейка продолжений**: `_merge_continuation_rows()`  
+- **Постобработка “слипшихся” ячеек / извлечение позиции**: `_fix_merged_cells()`
