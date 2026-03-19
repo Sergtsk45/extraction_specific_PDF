@@ -9,11 +9,11 @@
 
 import { ServiceCard } from '/shell/js/card-grid.js';
 
+// Только режимы, возвращающие файл — quick mode всегда скачивает ответ как файл.
+// json / both возвращают JSON-тело: скачается как result.xlsx, Excel не откроет.
 const OUTPUT_MODES = [
   { value: 'xlsx',      label: 'Excel', icon: '📊', title: 'Таблица Excel (.xlsx)' },
   { value: 'odoo_xlsx', label: 'Odoo',  icon: '🏢', title: 'Импорт товаров в Odoo (.xlsx)' },
-  { value: 'json',      label: 'JSON',  icon: '{ }', title: 'JSON-данные счёта' },
-  { value: 'both',      label: 'Оба',   icon: '🔀', title: 'JSON + ссылка на Excel' },
 ];
 
 class InvoiceExtractorCard extends ServiceCard {
