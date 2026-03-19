@@ -211,6 +211,7 @@ export class ServiceCard extends HTMLElement {
     try {
       const formData = new FormData();
       formData.append('file', file);
+      this._buildFormData(formData);
 
       const endpoint = this.#buildEndpoint(m.endpoints?.base, m.endpoints?.convert);
       const response = await fetch(endpoint, { method: 'POST', body: formData });
@@ -312,6 +313,13 @@ export class ServiceCard extends HTMLElement {
       this.#resetDropzoneText();
     }, duration);
   }
+
+  /* ------------------------------------------------------------------
+     Subclass hooks (overridable by subclasses, «_» convention = protected)
+     ------------------------------------------------------------------ */
+
+  /** Hook: subclasses can append extra FormData fields before the request. */
+  _buildFormData(_formData) {}
 
   /* ------------------------------------------------------------------
      Health Check
