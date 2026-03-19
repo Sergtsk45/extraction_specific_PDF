@@ -21,11 +21,20 @@ class InvoiceExtractorCard extends ServiceCard {
   #selectedOutput = 'xlsx';
 
   /* ------------------------------------------------------------------
-     Override: инжектируем селектор после каждой отрисовки манифеста
+     Overrides: инжектируем селектор после каждой отрисовки
      ------------------------------------------------------------------ */
 
   setManifest(manifest) {
     super.setManifest(manifest);
+    // Если элемент ещё не в DOM, connectedCallback добавит кнопки позже
+    if (!this.isConnected) return;
+    this._injectOutputSelector();
+  }
+
+  connectedCallback() {
+    // super.connectedCallback() вызывает #render() — shadow DOM пересоздаётся
+    super.connectedCallback();
+    // Инжектируем кнопки ПОСЛЕ перерисовки родителя
     this._injectOutputSelector();
   }
 
