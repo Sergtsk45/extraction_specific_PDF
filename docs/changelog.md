@@ -5,6 +5,18 @@
 
 ---
 
+## [2026-03-19] — invoice-extractor: Odoo output
+
+### Добавлено
+- **ODOO-001** — Новый output режим `odoo_xlsx` в `POST /convert` (invoice-extractor).
+  - Создан модуль `app/odoo_builder.py`: функция `build_odoo_xlsx(data, output_path)` формирует `.xlsx` по шаблону Odoo (9 колонок: External ID, Name, Product Type, Internal Reference, Barcode, Sales Price, Cost, Weight, Sales Description).
+  - External ID детерминированный: `inv_{inn}_{invoice_number}_{line_no}` — повторный импорт обновляет записи, не создаёт дублей.
+  - Добавлена валидация параметра `output`: неизвестные значения возвращают 400.
+  - Временный файл удаляется в `finally` (аналогично PDF).
+  - 24 новых теста в `tests/test_odoo_builder.py` (unit + интеграционные).
+
+---
+
 ## [2026-03-17] — Code Review: исправления FIX-001..013
 
 ### Безопасность
