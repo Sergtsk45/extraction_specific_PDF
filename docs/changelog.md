@@ -5,6 +5,25 @@
 
 ---
 
+## [2026-04-20] — invoice-extractor: Odoo PO — устойчивость к пустому НДС
+
+### Исправлено
+- **`po_builder`**: пустая строка или нечисловой `vat_rate` в позиции счёта больше не вызывает `ValueError` при `float(...)` (ошибка 500 на режиме `odoo_po_xlsx`). Числовые `qty`/`price` в виде строк (в т.ч. с запятой) приводятся к числу.
+
+---
+
+## [2026-04-20] — invoice-extractor: Odoo Purchase Order output
+
+### Добавлено
+- **ODOO-002** — Новый output режим `odoo_po_xlsx` в `POST /convert` (invoice-extractor).
+  - Модуль `app/po_builder.py`: функция `build_po_xlsx(data, output_path)` формирует `.xlsx` для импорта заказа на закупку в Odoo (`purchase.order`, 11 колонок).
+  - Формат файла: первая строка данных содержит поля заголовка заказа и первую позицию; последующие строки — только `id` заказа и позиции (Odoo связывает строки по `id`).
+  - External ID детерминированный: `po_{inn}_{invoice_number}` / `po_{inn}_{invoice_number}_line_{N}`.
+  - В `component.js` добавлена кнопка «Odoo Заказ» в переключатель режимов; режим `odoo_xlsx` подписан как «Odoo ТМЦ».
+  - Тесты в `tests/test_po_builder.py` (unit + интеграция с `/convert`).
+
+---
+
 ## [2026-03-19] — invoice-extractor: Odoo output
 
 ### Добавлено

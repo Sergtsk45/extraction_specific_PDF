@@ -18,6 +18,7 @@ load_dotenv()
 from app.extractor import extract_invoice
 from app.excel_builder import build_excel
 from app.odoo_builder import build_odoo_xlsx
+from app.po_builder import build_po_xlsx
 from app.validators import validate_invoice_data
 
 # ── Логирование ────────────────────────────────────────────────
@@ -127,7 +128,7 @@ def convert():
       file         — PDF-файл (обязательно)
       vision_only  — 'true' | 'false' (по умолчанию false)
       provider     — 'anthropic' | 'openrouter' | 'openai'
-      output       — 'json' | 'xlsx' | 'both' | 'odoo_xlsx' (по умолчанию 'xlsx')
+      output       — 'json' | 'xlsx' | 'both' | 'odoo_xlsx' | 'odoo_po_xlsx' (по умолчанию 'xlsx')
     """
     logger.info("Convert request received")
     
@@ -148,9 +149,9 @@ def convert():
 
     vision_only = request.form.get("vision_only", "false").lower() == "true"
     provider = request.form.get("provider", os.getenv("LLM_PROVIDER", "anthropic"))
-    output_mode = request.form.get("output", "xlsx")  # xlsx | json | both | odoo_xlsx
+    output_mode = request.form.get("output", "xlsx")  # xlsx | json | both | odoo_xlsx | odoo_po_xlsx
 
-    _VALID_OUTPUT_MODES = {"json", "xlsx", "both", "odoo_xlsx"}
+    _VALID_OUTPUT_MODES = {"json", "xlsx", "both", "odoo_xlsx", "odoo_po_xlsx"}
     if output_mode not in _VALID_OUTPUT_MODES:
         return jsonify({"error": f"Недопустимый output. Допустимые значения: {', '.join(sorted(_VALID_OUTPUT_MODES))}"}), 400
 
@@ -163,6 +164,7 @@ def convert():
     logger.info(f"File saved with job_id: {job_id}")
 
     odoo_path: Path | None = None
+    po_path: Path | None = None
 
     try:
         # ── Извлечение данных ──────────────────────────────────
@@ -223,6 +225,18 @@ def convert():
                 download_name=safe_filename,
             ), 200, {**headers, "X-Output-Mode": "odoo_xlsx"}
 
+        if output_mode == "odoo_po_xlsx":
+            po_path = OUTPUT_FOLDER / f"{job_id}_po.xlsx"
+            logger.info(f"Building Odoo PO XLSX: {po_path}")
+            build_po_xlsx(invoice_data, str(po_path))
+            safe_filename = quote(f"po_{invoice_number}.xlsx", safe='')
+            return send_file(
+                str(po_path),
+                mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                as_attachment=True,
+                download_name=safe_filename,
+            ), 200, {**headers, "X-Output-Mode": "odoo_po_xlsx"}
+
         # both — возвращаем JSON + путь к файлу
         logger.info("Returning JSON with XLSX reference")
         invoice_data["xlsx_job_id"] = job_id
@@ -253,6 +267,12 @@ def convert():
                 logger.debug(f"Temporary Odoo XLSX deleted: {odoo_path}")
             except Exception as e:
                 logger.warning(f"Failed to delete Odoo XLSX: {e}")
+        if po_path is not None:
+            try:
+                po_path.unlink(missing_ok=True)
+                logger.debug(f"Temporary PO XLSX deleted: {po_path}")
+            except Exception as e:
+                logger.warning(f"Failed to delete temporary PO XLSX: {e}")
 
 
 # ── Запуск сервера ─────────────────────────────────────────────

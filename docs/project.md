@@ -1,7 +1,7 @@
 # Extraction Specific PDF — Мультисервисная платформа
 
-> **Версия документа:** 1.4.1  
-> **Дата:** 2026-03-18  
+> **Версия документа:** 1.4.2  
+> **Дата:** 2026-04-20  
 > **Статус:** Shell + 2 активных микросервиса реализованы; planned-сервисы представлены манифестами; деплой через systemd/Nginx доступен как шаблоны в репозитории
 
 ---
@@ -328,7 +328,7 @@ flowchart LR
 | Метод | Endpoint | Описание |
 |-------|----------|----------|
 | `GET` | `/health` | Статус сервиса |
-| `POST` | `/convert` | Загрузка PDF счета (multipart/form-data, поле `file`). Параметры: `provider`, `vision_only`, `output`. Ответ: `.xlsx` или `{"error": "..."}` |
+| `POST` | `/convert` | Загрузка PDF счета (multipart/form-data, поле `file`). Параметры: `provider`, `vision_only`, `output` (`json`, `xlsx`, `both`, `odoo_xlsx` — товары в Odoo, `odoo_po_xlsx` — заказ закупки `purchase.order`). Ответ: `.xlsx` или JSON или `{"error": "..."}` |
 
 **Заголовки ответа:**
 - `X-Vision-Fallback` — использовался ли Vision-режим (true/false)
@@ -343,7 +343,7 @@ flowchart LR
 - **Параметр `vision_only=true`** в Advanced mode принудительно использует LLM Vision.
 - **Провайдер LLM**: выбирается параметром `provider` (anthropic, openrouter, openai) или конфиг `.env`.
 - **Валидация данных**: проверка обязательных полей, формата дат, суммы.
-- **Экспорт**: генерация структурированного XLSX с заголовками и стилизацией.
+- **Экспорт**: генерация структурированного XLSX с заголовками и стилизацией; опционально экспорт для Odoo (`odoo_xlsx` — шаблон товаров, `odoo_po_xlsx` — заказ на закупку).
 
 ### 6.6 Структура файлов
 
@@ -361,6 +361,8 @@ services/invoice-extractor/
 │   │   ├── extractor.py         # Основной парсер: текст + LLM Vision fallback
 │   │   ├── llm_client.py        # Интеграция с LLM (Anthropic, OpenAI, OpenRouter)
 │   │   ├── excel_builder.py     # Генерация .xlsx
+│   │   ├── odoo_builder.py      # XLSX для импорта товаров (Odoo product.template)
+│   │   ├── po_builder.py        # XLSX для импорта заказа закупки (Odoo purchase.order)
 │   │   ├── validators.py        # Проверка качества парсинга
 │   │   └── normalizer.py        # Нормализация извлечённых данных
 │   ├── .env                      # API-ключи (не в репо)

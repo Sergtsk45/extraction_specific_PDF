@@ -11,6 +11,7 @@
 ### invoice-extractor
 - Запуск (dev): `cd services/invoice-extractor/backend && flask run --port 5000`
 - Запуск (prod): `cd services/invoice-extractor/backend && gunicorn -c gunicorn.conf.py wsgi:app`
+- `POST /convert`, параметр `output`: `json` | `xlsx` | `both` | `odoo_xlsx` (товары) | `odoo_po_xlsx` (заказ закупки)
 - Тесты (все): `pytest services/invoice-extractor/`
 - Тесты (один файл): `pytest services/invoice-extractor/backend/tests/test_extractor.py`
 - Lint: `ruff check services/`
@@ -43,7 +44,9 @@ services/
 │   │   ├── llm_client.py   # Anthropic/OpenAI/OpenRouter abstraction
 │   │   ├── normalizer.py   # Нормализация извлечённых данных
 │   │   ├── validators.py   # Валидация данных
-│   │   └── excel_builder.py # Генерация Excel (openpyxl)
+│   │   ├── excel_builder.py # Генерация Excel (openpyxl)
+│   │   ├── odoo_builder.py # XLSX для Odoo (product.template)
+│   │   └── po_builder.py   # XLSX для Odoo (purchase.order)
 │   ├── wsgi.py
 │   └── requirements.txt
 ├── spec-converterv2/backend/

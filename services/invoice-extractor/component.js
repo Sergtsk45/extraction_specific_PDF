@@ -1,7 +1,7 @@
 /**
  * @file: component.js
  * @description: Web Component для сервиса invoice-extractor.
- *   Добавляет переключатель output-режима (Excel / Odoo / JSON / Оба)
+ *   Добавляет переключатель output-режима (Excel / Odoo ТМЦ / Odoo Заказ)
  *   поверх стандартной карточки ServiceCard.
  * @dependencies: /shell/js/card-grid.js
  * @created: 2026-03-01
@@ -12,8 +12,9 @@ import { ServiceCard } from '/shell/js/card-grid.js';
 // Только режимы, возвращающие файл — quick mode всегда скачивает ответ как файл.
 // json / both возвращают JSON-тело: скачается как result.xlsx, Excel не откроет.
 const OUTPUT_MODES = [
-  { value: 'xlsx',      label: 'Excel', icon: '📊', title: 'Таблица Excel (.xlsx)' },
-  { value: 'odoo_xlsx', label: 'Odoo',  icon: '🏢', title: 'Импорт товаров в Odoo (.xlsx)' },
+  { value: 'xlsx',         label: 'Excel',     icon: '📊', title: 'Таблица Excel (.xlsx)' },
+  { value: 'odoo_xlsx',    label: 'Odoo ТМЦ',  icon: '🏢', title: 'Импорт товаров в Odoo (product.template)' },
+  { value: 'odoo_po_xlsx', label: 'Odoo Заказ', icon: '🛒', title: 'Импорт заказа на закупку в Odoo (purchase.order)' },
 ];
 
 class InvoiceExtractorCard extends ServiceCard {

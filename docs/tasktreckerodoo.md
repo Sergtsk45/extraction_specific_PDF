@@ -5,6 +5,51 @@
 
 ---
 
+## Задача: ODOO-002 — Экспорт заказа на закупку в формате Odoo purchase.order
+- **Статус**: Выполнено ✓ (2026-04-20)
+- **Приоритет**: Высокий
+- **Описание**: Добавить output-режим `odoo_po_xlsx` в `invoice-extractor` для формирования файла импорта заказа на закупку (`purchase.order`) из PDF-счёта поставщика.
+
+### Принятые решения (2026-04-20)
+- **Модель Odoo**: `purchase.order` (импорт через голову заказа)
+- **Формат one2many**: первая строка данных = заголовок заказа + первая позиция; строки 2+ = только id + позиция
+- **Цена**: `price` (без НДС) → `order_line/price_unit`
+- **Налог**: `vat_rate` → строка вида `20%` (отображаемое имя `account.tax` в Odoo)
+- **External ID заказа**: `po_{inn}_{invoice_number}`
+- **External ID строки**: `po_{inn}_{invoice_number}_line_{line_no}`
+- **Имя листа**: `purchase.order`
+- **Поставщик**: строка (отображаемое имя); Odoo матчит по имени в `res.partner`
+
+### 11 колонок (PO_HEADERS)
+| Колонка | Поле Odoo | Заполнение |
+|---------|-----------|------------|
+| id | External ID заказа | Все строки |
+| name | Номер заказа | Только строка 1 |
+| partner_id | Поставщик | Только строка 1 |
+| date_order | Дата заказа | Только строка 1 |
+| order_line/id | External ID строки | Все строки |
+| order_line/product_id | Товар | Все строки |
+| order_line/name | Описание | Все строки |
+| order_line/product_qty | Количество | Все строки |
+| order_line/price_unit | Цена без НДС | Все строки |
+| order_line/product_uom | Единица измерения | Все строки |
+| order_line/taxes_id | Налог | Все строки |
+
+### Файлы
+- `services/invoice-extractor/backend/app/po_builder.py` — модуль построения XLSX
+- `services/invoice-extractor/backend/app.py` — режим `odoo_po_xlsx`, очистка временного файла в `finally`
+- `services/invoice-extractor/component.js` — кнопка «Odoo Заказ»
+- `services/invoice-extractor/backend/tests/test_po_builder.py` — тесты
+
+### Критерии приёмки
+- [x] `pytest services/invoice-extractor/` — все тесты зелёные
+- [ ] `POST /convert` с `output=odoo_po_xlsx` → 200, header `X-Output-Mode: odoo_po_xlsx` (проверено тестами)
+- [ ] Скачанный `.xlsx` импортируется в Odoo: Закупки → Заказы → Импорт
+- [ ] Повторный импорт того же счёта обновляет заказ, не создаёт дубль
+- [x] Кнопка «Odoo Заказ» отображается в карточке сервиса
+
+---
+
 ## Задача: ODOO-001 — Экспорт товаров в формате Odoo Template (9 колонок)
 - **Статус**: Выполнено ✓ (2026-03-19)
 - **Приоритет**: Высокий

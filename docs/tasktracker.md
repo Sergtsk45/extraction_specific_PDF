@@ -1,7 +1,18 @@
 # Task Tracker — Extraction Specific PDF
 
-> **Обновлено:** 2026-03-17
+> **Обновлено:** 2026-04-20
 > **Приоритеты:** Критический / Высокий / Средний / Низкий
+
+---
+
+## Задача: ODOO-002 — Odoo purchase.order (invoice-extractor)
+- **Статус**: Завершена
+- **Описание**: Режим `odoo_po_xlsx` в `POST /convert`, модуль `po_builder.py`, кнопка в `component.js`, тесты `test_po_builder.py`, документация в `docs/changelog.md`, `docs/project.md`, `docs/tasktreckerodoo.md`.
+- **Шаги выполнения**:
+  - [x] Интеграция в `app.py` и очистка временного файла
+  - [x] Обновление UI переключателя режимов
+  - [x] Документация и changelog
+- **Зависимости**: ODOO-001 (odoo_xlsx)
 
 ---
 
